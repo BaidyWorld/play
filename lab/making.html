@@ -1,0 +1,66 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>制作揭秘 · 放学后的秘密实验室</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101d22;color:#e7f0e8;font:16px/1.8 system-ui,"PingFang SC",sans-serif}main{max-width:900px;margin:auto;padding:35px 22px 65px}a{color:#bdfba7}h1{font-size:clamp(28px,5vw,44px);margin:16px 0}h2{font-size:24px;margin:0 0 12px}h3{font-size:17px;color:#bdfba7}p{color:#bacac3}section{margin:24px 0;padding:26px;border:1px solid #425b53;border-radius:18px;background:#1b2d30}.kicker{letter-spacing:3px;font-size:12px;color:#bdfba7}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{padding:15px;background:#112524;border-radius:12px}.card p{font-size:14px}code{font-family:ui-monospace,monospace;color:#e7d69c}pre{padding:17px;background:#0e2021;border-radius:10px;overflow:auto;font-size:13px;line-height:1.7}summary{cursor:pointer;color:#bdfba7;font-weight:600}details{border:1px dashed #78937e;padding:15px;border-radius:12px;margin-top:18px}.flow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.flow span{padding:9px 13px;border:1px solid #617c69;border-radius:9px}.demo{height:130px;display:flex;align-items:center;justify-content:center;gap:55px}.bot{position:relative;width:70px;height:54px;border-radius:17px;background:#d2dfc5;border-bottom:6px solid #93afa2}.bot:before{content:"•  •";position:absolute;inset:10px 9px 8px;border-radius:8px;background:#244443;color:#bdfba7;text-align:center;line-height:23px;font-size:26px}.bot:after{content:"";position:absolute;top:-13px;left:33px;width:5px;height:14px;border-radius:6px;background:#bdfba7}.bottle{width:38px;height:72px;border:3px solid #d9e9cfb0;border-radius:5px 5px 15px 15px;background:linear-gradient(transparent 35%,#80b8d5 35%)}button{font:inherit;cursor:pointer;padding:10px 15px;border:0;border-radius:9px;background:#bdfba7;color:#18382b}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #e7d69c;outline-offset:5px}.status{font-size:14px;color:#bdfba7}@media(max-width:620px){.grid{grid-template-columns:1fr}section{padding:20px}main{padding:25px 15px}}
+</style></head><body><main><a href="index.html">← 回到游戏</a><p class="kicker">BUILD NOTES / 一起拆开小游戏</p><h1>一个秘密实验室，是怎样做出来的？</h1><p>这不是 3D 游戏：没有建模软件、图片素材或游戏引擎。你看到的实验室、颜料瓶和豆豆，现在用 SVG 画透视墙面与地板，用 HTML + CSS 画有厚度的物件，组合成 2.5D 场景。JavaScript 负责记住你的选择，判断谜题是否解开。</p>
+<section><h2>01 · 先把画面拆成板块</h2><div class="grid"><div class="card"><h3>上方：游戏说明</h3><p>标题、故事背景、六关进度，以及重新开始和教学入口。</p></div><div class="card"><h3>左侧：可探索房间</h3><p>墙面、吊灯、黑板、实验台、密码柜、电路盒、显微镜、豆豆与出口。可点击物品实际都是 button 按钮。</p></div><div class="card"><h3>右侧：帮助与背包</h3><p>豆豆讲笑话、提供提示；物品格和下方文字记录顺序卡、数字、电池、电路、观察卡和钥匙。</p></div></div><p>游戏里的 <code>.layout</code> 用 CSS Grid 排成两列；窗口小于 800 像素时改成一列。房间设置 <code>position:relative</code>，物品用百分比定位，让它们跟着房间缩放。</p><pre><code>.layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+}
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+}</code></pre></section>
+<section><h2>02 · 用 2.5D 做出立体实验室</h2><p>先想象光从右上方的窗户和吊灯照进来：物体上面更亮，侧面更暗，落地处有阴影。我们没有建立真正的 3D 网格，而是用透视平面、渐变和阴影让眼睛感到深度。</p><div class="grid"><div class="card"><h3>房间：SVG 透视</h3><p>后墙是矩形，两侧墙和地板是多边形。地砖线向远处收拢，墙脚线连接起来，形成空间。窗户和光束也在同一幅 SVG 中。</p></div><div class="card"><h3>桌柜：补上侧面</h3><p>柜子正面用渐变，伪元素当侧面，顶部单独画一个倾斜平面。桌面用 skewX 倾斜，下方叠上厚边和桌腿。</p></div><div class="card"><h3>玻璃和豆豆：高光</h3><p>瓶子叠加透明高光与颜料层，椭圆表现液面。豆豆用径向渐变做圆润外壳、内阴影做屏幕，再增加身体和地面阴影。</p></div></div><pre><code>/* visual.css：柜体侧面 */
+.cabinet:after {
+  position: absolute;
+  left: 100%;
+  width: 29px;
+  transform: skewY(27deg);
+  transform-origin: top left;
+  background: linear-gradient(90deg, #4c6b59, #345344);
+}</code></pre><p>上面节选的是实际规则。<code>left:100%</code> 把侧面接在正面右边，<code>skewY</code> 让它倾斜，较暗的颜色让它看起来背着光。</p><pre><code>/* 实际玻璃瓶背景：第一层高光，第二层颜料 */
+background:
+  linear-gradient(90deg, #ffffff38, transparent 23%,
+    #ffffff38 31%, transparent 43%, #173c4755 100%),
+  linear-gradient(transparent 35%, var(--liquid) 35%);</code></pre><p>豆豆轻轻上下浮动，鼠标移到颜料瓶上会摇一摇，按钮有按下的厚度变化。系统开启“减少动态效果”时，动画自动停用。装饰 SVG 使用 <code>pointer-events:none</code>，不会挡住物件点击。</p><pre><code>@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}</code></pre></section>
+<section><h2>03 · 六个谜题，一条完整线索链</h2><div class="flow"><span>混色</span>→<span>算式</span>→<span>密码柜</span>→<span>电路</span>→<span>显微镜</span>→<span>豆豆</span>→<span>出口</span></div><div class="grid"><div class="card"><h3>① 实验台</h3><p>输入：选择两种颜料。<br>线索：笔记要求混成绿色。<br>判断：两种颜色是否正确。<br>奖励：符号顺序卡。</p></div><div class="card"><h3>② 黑板</h3><p>输入：三个符号的数字。<br>线索：三行算式与顺序卡。<br>判断：计算结果与顺序。<br>奖励：三位数字记录。</p></div><div class="card"><h3>③ 密码柜</h3><p>输入：倒序数字。<br>线索：便签要求从右往左。<br>判断：反转顺序是否正确。<br>奖励：给实验室供电的电池。</p></div><div class="card"><h3>④ 电路盒</h3><p>输入：切换三条线路开关。<br>线索：维修贴纸标出检修线路。<br>判断：两路通电、一路断开。<br>奖励：点亮显微镜。</p></div><div class="card"><h3>⑤ 显微镜</h3><p>输入：选择匹配的图案卡。<br>线索：镜头里的星星和圆点。<br>判断：四个位置完全一致。<br>奖励：豆豆的记忆按钮顺序。</p></div><div class="card"><h3>⑥ 豆豆</h3><p>输入：按顺序点击三个符号。<br>线索：观察卡上的口令。<br>判断：每一步符号是否正确。<br>奖励：记忆舱中的出口钥匙。</p></div></div><p>探索顺序自由，但后一关需要前一关的奖励。每关都能得到逐步提示；错误答案会解释该观察什么，不扣分。机器人顺序输错只重置这次按钮输入。</p><details><summary>展开完整谜底与判断代码（含剧透）</summary><p>黄 + 蓝 → △ ○ □ 顺序卡 → 由算式解出 472 → 倒序输入 274 拿电池 → 上路开、中路关、下路开 → 显微镜选 B（星星在左上和右下）→ 按太阳、月亮、星星 → 拿钥匙点击出口。</p><pre><code>// 实际电路判断：三项必须同时正确
+if (!switches[0] || switches[1] || !switches[2])
+  return feedback('还没接对。上、下两路要开，中路检修要关。');
+state.powered = true;
+state.hints = 0;
+render();</code></pre><p>显微镜检查按钮的 <code>data-pattern</code> 是否为 <code>b</code>；机器人把点击符号放入 <code>sequence</code>，逐个与 <code>['☀','☾','★']</code> 比较。</p></details></section>
+<section><h2>04 · 点击后，到底发生了什么？</h2><p>HTML 给物品写上名字，比如 <code>data-place="bench"</code> 表示实验台。JavaScript 找到这些按钮，再让每个按钮调用 <code>openPlace()</code>。这个函数根据物品名称和已获得的线索，填好原生 <code>dialog</code> 弹窗。</p><pre><code>&lt;button class="object bench" data-place="bench"
+        aria-label="探索实验台"&gt;…&lt;/button&gt;
+
+document.querySelectorAll('[data-place]').forEach(b =&gt;
+  b.onclick = () =&gt; openPlace(b.dataset.place)
+);</code></pre><p>选择颜色时用数组 <code>selected</code> 记住选择，再次点击同色就是取消。最多选两种。输入密码则使用表单的 <code>onsubmit</code>，按 Enter 也可以提交。</p></section>
+<section><h2>05 · 用几个开关，记住整个冒险</h2><p>游戏状态只有下面这些字段。<code>false</code> 表示还没完成，<code>true</code> 表示已经完成。<code>hints</code> 记录当前阶段已经请求几次提示。</p><pre><code>const state = {
+  mixed: false, decoded: false, cabinet: false,
+  powered: false, observed: false, key: false,
+  escaped: false, hints: 0
+};</code></pre><p>每过一关，打开对应开关，再调用 <code>render()</code>。它数出已完成的谜题，更新进度、背包和柜门显示。状态保存在当前页面内存中，刷新页面会开始新游戏。</p><div class="card"><h3>动手试：一个状态开关</h3><button id="try">模拟拿到钥匙</button> <button id="clear">清空演示</button><p class="status" id="demoState" aria-live="polite">演示状态：key = false · 出口还锁着</p></div><p>这里是独立教学演示，不会改变游戏进度。</p><pre><code>// 游戏成功唤醒豆豆后的实际更新步骤
+state.key = true;
+state.hints = 0;
+render();</code></pre></section>
+<section><h2>06 · 提示、通关与重玩</h2><p><strong>提示：</strong>依次检查六个谜题，先看哪一个状态还没完成，选择那一关的提示列表。第一次给方向，再次点击给更明确的帮助。<code>Math.min()</code> 让提示停在最后一条，不会越界。</p><pre><code>say(hints[Math.min(state.hints++, hints.length - 1)]);</code></pre><p><strong>通关：</strong>点出口时检查 <code>state.key</code>。有钥匙才设置 <code>state.escaped = true</code> 并显示庆祝文字。拿到钥匙还不等于离开房间。</p><p><strong>重玩：</strong>游戏中的 <code>reset()</code> 关闭弹窗、清空颜色、把所有开关恢复为 false，再重画进度与背包。已有进度时，顶部重玩按钮会先显示确认弹窗，避免误触。</p><pre><code>Object.assign(state, {
+  mixed: false, decoded: false, cabinet: false,
+  powered: false, observed: false, key: false,
+  escaped: false, hints: 0
+});
+selected = [];
+$('modal').close();
+render();</code></pre></section>
+<section><h2>位置引导 · 每一步都知道去哪里</h2><p>房间上方的“下一步”文字与物件金色光圈同步。初始指向实验台，之后按黑板、密码柜、电路盒、显微镜、豆豆、出口依次切换。成功弹窗的“去下一步”按钮会关闭弹窗、滚动到目标并把键盘焦点放到目标上，不会替你自动解谜。</p><pre><code>function nextStep() {
+  return state.escaped ? null
+    : steps.find(([flag]) =&gt; !state[flag])
+      || ['escaped', 'door', '出口'];
+}</code></pre><p><code>steps</code> 按六关顺序记录“完成状态、物件名称、中文标签”。每次更新背包时同时调用 <code>guide()</code>，只给当前目标添加 <code>next-target</code> 类。通关返回 null，移除所有光圈；重玩状态清空，重新指向实验台。</p><p>光圈用 CSS outline 画在按钮外面，不添加遮挡点击的浮层。手机减少外扩距离。系统选择“减少动态效果”时光圈保持静态，定位也不使用平滑滚动。</p></section><section><h2>07 · 自己改一版，从这里开始</h2><p>① 改豆豆的一句笑话，刷新游戏看结果。<br>② 改墙面、瓶子或黑板的 CSS 颜色。<br>③ 设计新算式时，一起更新黑板、正确答案、提示、线索显示和测试，避免线索互相矛盾。</p><p>项目包含游戏页 <a href="index.html">index.html</a>、立体视觉样式 <code>visual.css</code>、本教学页 <code>making.html</code>、主目录说明 <code>../GAMES.md</code> 和浏览器检查脚本 <code>check.cjs</code>。不用安装 npm 包。</p><pre><code># 在项目文件夹中启动预览
+python3 -m http.server 4173 --bind 127.0.0.1
+
+# 使用本机 Google Chrome 检查游戏流程
+node lab/check.cjs</code></pre><p>检查脚本实际点击颜色、切换电路、选择图案、输入按钮顺序，并提交正确和错误答案，验证前置条件、六个谜题、出口、重玩与提示。它使用两种窗口尺寸检查水平溢出和物件中心是否可点击；真实手机触摸体验仍可以由你亲自试玩确认。</p><a href="index.html">现在回到实验室，边玩边观察 →</a></section></main><script>let hasKey=false;function show(){document.getElementById('demoState').textContent='演示状态：key = '+hasKey+' · '+(hasKey?'现在可以开门啦':'出口还锁着')}document.getElementById('try').onclick=()=>{hasKey=true;show()};document.getElementById('clear').onclick=()=>{hasKey=false;show()};</script></body></html>

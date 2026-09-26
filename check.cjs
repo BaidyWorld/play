@@ -10,19 +10,27 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
  const go=url=>load(()=>frame.src=url),doc=()=>frame.contentDocument;
  const checkLayout=()=>assert(doc().documentElement.scrollWidth<=frame.clientWidth,'horizontal overflow: '+frame.src);
  try{
-  await go(prefix);assert(doc().querySelectorAll('.card').length===2,'two games on homepage');checkLayout();
+  await go(prefix);assert(doc().querySelectorAll('.card').length===3,'three games on homepage');checkLayout();
   for(const link of doc().querySelectorAll('a'))assert(link.href.startsWith(prefix),'link escapes repository prefix');
   await load(()=>doc().querySelector('a[href="lab/index.html"]').click());
   assert(frame.contentWindow.location.pathname==='/repo-name/lab/index.html','lab navigation');assert(doc().querySelector('.next-target')?.dataset.place==='bench','lab JavaScript started');assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/lab/visual.css')&&sheet.cssRules.length>0),'lab stylesheet loaded');checkLayout();
   await load(()=>doc().querySelector('a[href="making.html"]').click());assert(doc().title,'making page loads');
   await load(()=>doc().querySelector('a[href="index.html"]').click());
-  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===2,'lab returns to homepage');
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===3,'lab returns to homepage');
   await load(()=>doc().querySelector('a[href="tank/index.html?map=city"]').click());assert(frame.contentWindow.eval('currentMap')==='city','city query survives prefix');assert(doc().querySelector('[data-map="city"]').getAttribute('aria-pressed')==='true','city selection visible');checkLayout();
   doc().getElementById('action').click();assert(frame.contentWindow.eval('mode')==='playing','tank script loaded and start works');assert(frame.contentWindow.eval('allies.length')===10,'ten allies loaded');
   doc().querySelector('[data-map="field"]').click();assert(frame.contentWindow.eval('currentMap')==='field','switch to original map');
   doc().querySelector('[data-map="city"]').click();assert(frame.contentWindow.eval('currentMap')==='city','switch back to city');
-  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===2,'tank returns to homepage');
-  document.body.innerHTML='<p>CHECK_PASS: repository prefix, homepage navigation, lab resources, teaching page, tank JavaScript, city query, both map selections, return links, responsive layout</p>';
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===3,'tank returns to homepage');
+  await load(()=>doc().querySelector('a[href="mine/index.html"]').click());assert(doc().getElementById('menu').open,'mine menu loads');checkLayout();
+  doc().getElementById('start').click();assert(frame.contentWindow.eval('playing'),'mine starts');
+  frame.contentWindow.eval("state.tiles[3][state.x]='dirt'");
+  frame.contentWindow.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown',{code:'Space'}));
+  frame.contentWindow.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown',{code:'ArrowDown'}));
+  assert(frame.contentWindow.eval('state.y')===3,'mine movement before reload');
+  await load(()=>frame.contentWindow.location.reload());assert(doc().getElementById('resume').hidden===false,'saved mine offers resume');doc().getElementById('resume').click();assert(frame.contentWindow.eval('state.y')===3,'mine restores position');
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===3,'mine returns to homepage');
+  document.body.innerHTML='<p>CHECK_PASS: repository prefix, homepage navigation, lab resources, teaching page, tank JavaScript, city query, both map selections, mine resources and persistent save, return links, responsive layout</p>';
  }catch(error){document.body.innerHTML='<p>CHECK_FAIL: '+error.message+'</p>'}
 })();
 </script>`;
@@ -56,6 +64,8 @@ async function checkDeployment(){
  if(!process.argv.includes('--deployment-only')){
   await run(process.execPath,[path.join(root,'lab/check.cjs')]);
   await run(process.execPath,[path.join(root,'tank/check.cjs')]);
+  await run(process.execPath,[path.join(root,'mine/core.test.cjs')]);
+  await run(process.execPath,[path.join(root,'mine/check.cjs')]);
  }
  await checkDeployment();
 })().catch(error=>{console.error(error);process.exitCode=1;});

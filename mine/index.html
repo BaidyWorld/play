@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="带上镐子和火把，找到三颗能量水晶，点亮营地灯塔。无需下载的免费挖矿小游戏。">
+<title>方块矿洞 · 寻宝归来</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="i-pick" viewBox="0 0 32 32"><path d="m8 27 14-18 3 3-14 18Z" fill="#bc8554" stroke="currentColor" stroke-width="2"/><path d="M4 11 11 4l12 2 6 9-9-5-8-1Z" fill="#a4c5c9" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-stone" viewBox="0 0 32 32"><path d="m4 13 7-7 14 2 4 15-9 5-15-3Z" fill="#8eaaa8" stroke="currentColor" stroke-width="2"/><path d="m4 13 15 3 6-8m-6 8 1 12" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-torch" viewBox="0 0 32 32"><path d="m13 29 2-16h5l-2 16Z" fill="#bb8254" stroke="currentColor" stroke-width="2"/><path d="M16 3c1 6 9 5 7 12s-13 5-13-1c0-4 4-6 6-11Z" fill="#f5b957" stroke="currentColor" stroke-width="2"/><path d="m17 10 3 7h-7Z" fill="#ffeeb0"/></symbol>
+<symbol id="i-map" viewBox="0 0 32 32"><path d="m3 7 9-3 8 3 9-3v22l-9 3-8-3-9 3Z" fill="#e6d9a8" stroke="currentColor" stroke-width="2"/><path d="M12 4v22M20 7v22m-4-15 7 7m0-7-7 7" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-bag" viewBox="0 0 32 32"><rect x="6" y="9" width="21" height="20" rx="5" fill="#cf9b62" stroke="currentColor" stroke-width="2"/><path d="M12 9V4h9v5M6 17h21m-17 4h13v5H10Z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-gem" viewBox="0 0 32 32"><path d="m16 2 11 9-2 13-9 6L6 23 5 11Z" fill="#83e6d3" stroke="currentColor" stroke-width="2"/><path d="m16 2-5 10 5 18 5-18Zm-11 9h22" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</defs></svg>
+<header class="topbar"><a href="../index.html" class="back">〈 返回游戏大厅</a><span class="brand">白帝的小世界 <span>/</span> 矿洞探险</span><button id="pause" class="quiet">暂停 / 菜单</button></header>
+<main>
+<div class="heading"><div><p class="kicker">带上好奇心，往地下走一走。</p><h1>方块矿洞<span>寻宝归来</span></h1></div><div class="save-state" id="saveStatus">本地探险 · 无需登录</div></div>
+<div class="game-layout">
+<section class="game-panel" aria-label="矿洞游戏">
+<div class="game-hud"><span class="location"><span class="live-dot"></span><span id="location">地面营地</span></span><span><svg><use href="#i-gem"/></svg><b id="gems">0 / 3</b><span class="hud-label">能量水晶</span></span><span id="depth">深度 0 m</span></div>
+<div class="viewport"><canvas id="world" tabindex="0" aria-label="矿洞。方向键或 WASD 移动，空格使用工具，数字1至5切换工具或打开地图和背包。"></canvas><div class="scene-label" id="sceneLabel">营地灯塔 · 等你点亮</div><div class="compass" aria-hidden="true">N<br>↑</div></div>
+<div class="message" id="message" role="status" aria-live="polite">准备好了吗？地底藏着三颗闪闪发光的水晶。</div>
+<div class="controls-row"><div class="hotbar" aria-label="工具快捷栏">
+<button class="tool selected" data-tool="pick" aria-pressed="true"><kbd>1</kbd><svg><use href="#i-pick"/></svg><span>镐子</span></button>
+<button class="tool" data-tool="stone" aria-pressed="false"><kbd>2</kbd><svg><use href="#i-stone"/></svg><span>石块 <b id="stoneCount">6</b></span></button>
+<button class="tool" data-tool="torch" aria-pressed="false"><kbd>3</kbd><svg><use href="#i-torch"/></svg><span>火把 ∞</span></button>
+<button class="tool" id="mapButton"><kbd>4</kbd><svg><use href="#i-map"/></svg><span>地图</span></button>
+<button class="tool" id="bagButton"><kbd>5</kbd><svg><use href="#i-bag"/></svg><span>背包</span></button>
+</div><button id="use" class="use-button"><svg><use href="#i-pick"/></svg><span>使用镐子</span><small>空格</small></button></div>
+<div class="touch-controls" aria-label="移动方向"><button data-move="-1,0" aria-label="向左">←</button><div><button data-move="0,-1" aria-label="向上">↑</button><button data-move="0,1" aria-label="向下">↓</button></div><button data-move="1,0" aria-label="向右">→</button><p>方向键移动 / 面向方块<br>点击方块或「使用」来挖掘</p></div>
+</section>
+<aside>
+<section class="mission"><div class="mission-title"><svg><use href="#i-gem"/></svg><span>今天的小小冒险</span></div><h2>让灯塔，<br>再次亮起来。</h2><p>营地的灯塔没了能量。地下的三颗水晶，正等着一位勇敢的小矿工。</p><ol class="objectives"><li id="goal1"><span>1</span><div><strong>深入矿洞</strong><small>用镐子开辟自己的路</small></div></li><li id="goal2"><span>2</span><div><strong>寻找三颗水晶</strong><small>藏在 7、15、23 米深处</small></div></li><li id="goal3"><span>3</span><div><strong>带着宝藏回家</strong><small>回到地面中央的灯塔下</small></div></li></ol><div class="gem-slots" id="gemSlots" aria-hidden="true"><svg><use href="#i-gem"/></svg><svg><use href="#i-gem"/></svg><svg><use href="#i-gem"/></svg></div></section>
+<section class="field-notes"><h3>矿工的口袋笔记</h3><p><svg><use href="#i-pick"/></svg><span>泥土敲 1 下，岩石 2 下，<br>水晶要耐心敲 3 下。</span></p><p><svg><use href="#i-stone"/></svg><span>遇见地下水？<br>用挖到的石块铺一座桥。</span></p><p><svg><use href="#i-torch"/></svg><span>火把是免费的返程路标。<br>绳索让你随时往上爬。</span></p><div class="seed-label">矿洞编号 <b id="seedLabel">4149</b></div></section>
+</aside>
+</div><footer><span>不着急，没有倒计时。每一次探索，都算数。</span><span>WASD / 方向键移动 · 空格使用 · Esc 菜单</span></footer>
+</main>
+<dialog id="menu" aria-labelledby="menuTitle"><div class="menu-art" aria-hidden="true"><svg><use href="#i-pick"/></svg><span>一场地底的小冒险</span></div><div class="dialog-inner"><p class="kicker">欢迎来到你的矿洞</p><h2 id="menuTitle">带上镐子，出发！</h2><p>挖开方块，找到三颗水晶，<br>再循着火光回到营地。</p><button id="resume" class="primary" hidden>继续上次探险</button><div id="recent" class="recent" hidden></div><label for="seed">矿洞编号 <span>相同编号，生成相同矿洞</span></label><input id="seed" maxlength="24" value="4149" autocomplete="off" spellcheck="false"><button id="start" class="primary">开始探险 <span>↗</span></button><p class="dialog-note">单人游玩 · 自动保存 · 无需登录</p><a class="menu-back" href="../index.html">返回游戏大厅</a></div></dialog>
+<dialog id="info" aria-labelledby="infoTitle"><div class="dialog-inner"><div class="dialog-top"><h2 id="infoTitle">矿洞地图</h2><button id="closeInfo" class="quiet">关闭 ×</button></div><div id="infoBody"></div></div></dialog>
+<dialog id="replace" aria-labelledby="replaceTitle"><div class="dialog-inner"><h2 id="replaceTitle">开始新的探险？</h2><p>新的矿洞会替换当前存档。也可以取消，继续完成这次冒险。</p><div class="dialog-actions"><button id="cancelReplace" class="quiet">保留当前探险</button><button id="confirmReplace" class="primary">开始新探险</button></div></div></dialog>
+<script src="core.js"></script>
+<script src="game.js"></script>
+</body></html>

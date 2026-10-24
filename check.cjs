@@ -21,6 +21,9 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   }
  };
  try{
+  const nativeClip=new Audio(prefix+'english/audio/textbook/words/u1-1.mp3');nativeClip.preload='metadata';nativeClip.muted=true;
+  await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('textbook MP3 metadata timeout: state '+nativeClip.networkState+'/'+nativeClip.readyState+' '+nativeClip.currentSrc)),5000);nativeClip.onloadedmetadata=()=>{clearTimeout(timeout);resolve()};nativeClip.onerror=()=>{clearTimeout(timeout);reject(Error('textbook MP3 cannot decode'))};nativeClip.load()});
+  assert(nativeClip.duration>1&&nativeClip.duration<5,'published MP3 is a decodable short word clip');nativeClip.pause();nativeClip.removeAttribute('src');nativeClip.load();
   await go(prefix);assert(doc().querySelectorAll('.card').length===4,'three games and English practice on homepage');checkLayout();
   for(const link of doc().querySelectorAll('a'))assert(link.href.startsWith(prefix),'link escapes repository prefix');
   await load(()=>doc().querySelector('a[href="english/index.html"]').click());
@@ -73,8 +76,30 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   }
   const settingsEntry=doc().getElementById('reading-settings-toggle');
   assert(settingsEntry?.closest('.topbar'),'reading settings uses the top toolbar entry on both platforms');
-  settingsEntry.click();assert(doc().querySelector('.reading-settings').getBoundingClientRect().height===0,'toolbar button hides the whole settings section');
-  settingsEntry.click();assert(settingsEntry.getAttribute('aria-expanded')==='true'&&doc().querySelector('.reading-settings').getBoundingClientRect().height>0,'toolbar button expands settings again');checkLayout();
+  assert(settingsEntry.getAttribute('aria-expanded')==='false'&&doc().querySelector('.reading-settings').getBoundingClientRect().height===0,'reading settings default to collapsed');
+  assert(doc().querySelector('.hero').hidden,'collapsed settings also hide the listening and writing introduction');
+  settingsEntry.click();assert(settingsEntry.getAttribute('aria-expanded')==='true'&&!doc().querySelector('.hero').hidden,'settings and introduction expand together');
+  doc().querySelector('[data-unit="5"]').click();
+  await load(()=>frame.contentWindow.location.reload());
+  assert(doc().querySelector('[data-unit="5"]').getAttribute('aria-current')==='true','refresh restores the selected textbook unit');
+  assert(settingsEntry!==doc().getElementById('reading-settings-toggle')&&doc().getElementById('reading-settings-toggle').getAttribute('aria-expanded')==='true'&&!doc().querySelector('.hero').hidden,'expanded settings and introduction survive refresh');
+  doc().getElementById('reading-settings-toggle').click();
+  await load(()=>frame.contentWindow.location.reload());
+  assert(doc().getElementById('reading-settings-toggle').getAttribute('aria-expanded')==='false'&&doc().querySelector('.hero').hidden,'collapsed settings survive refresh');
+  for(let i=0;i<100&&!frame.contentWindow.performance.getEntriesByType('resource').some(resource=>resource.name.endsWith('/words/u5-1.mp3'));i++)await new Promise(resolve=>setTimeout(resolve,20));
+  assert(frame.contentWindow.performance.getEntriesByType('resource').some(resource=>resource.name.endsWith('/words/u5-1.mp3')),'entering a textbook unit preloads its original audio');
+  doc().querySelector('[data-unit="1"]').click();checkLayout();
+  const concealButton=doc().querySelector('[data-action="conceal"]');
+  assert(frame.contentWindow.getComputedStyle(concealButton).borderStyle!=='none','conceal action looks like a clickable tag');
+  assert(doc().querySelector('[data-action="auto-read"]').closest('.toolbar-right'),'automatic reading shares the conceal and voice toolbar');
+  const phonicsToggle=()=>doc().querySelector('[data-action="toggle-phonics"]');
+  const phonicsWord=doc().querySelector('.word-text'),wordRect=phonicsWord.getBoundingClientRect();
+  const colored=frame.contentWindow.getComputedStyle(phonicsWord.querySelector('.ph-vowel')).color;
+  phonicsToggle().click();
+  assert(frame.contentWindow.getComputedStyle(phonicsWord.querySelector('.ph-vowel')).color===frame.contentWindow.getComputedStyle(phonicsWord).color,'color toggle makes letters use their normal text color');
+  assert(doc().querySelector('.word-text')===phonicsWord&&phonicsWord.getBoundingClientRect().width===wordRect.width,'color toggle preserves word nodes and their layout');
+  assert(phonicsToggle().textContent==='显示着色','color toggle offers restoring colors');
+  phonicsToggle().click();assert(frame.contentWindow.getComputedStyle(phonicsWord.querySelector('.ph-vowel')).color===colored,'color toggle restores phonics coloring');
   const audioSource=()=>doc().getElementById('source-select');
   assert(audioSource()?.value==='textbook','textbook original is the first default audio source');
   assert(doc().getElementById('accent-select').disabled&&doc().getElementById('voice-select').disabled,'original recording retains its own accent and performers');
@@ -119,9 +144,6 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(doc().querySelector('.answer-word').textContent==='child / Children','dictation answer includes the singular and plural matching its original recording');checkPracticeViewport();
   doc().querySelector('[data-unit="1"]').click();
   frame.contentWindow.Audio=NativeAudio;
-  const nativeClip=new Audio(prefix+'english/audio/textbook/words/u1-1.mp3');nativeClip.preload='metadata';nativeClip.muted=true;
-  await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('textbook MP3 metadata timeout: state '+nativeClip.networkState+'/'+nativeClip.readyState+' '+nativeClip.currentSrc)),5000);nativeClip.onloadedmetadata=()=>{clearTimeout(timeout);resolve()};nativeClip.onerror=()=>{clearTimeout(timeout);reject(Error('textbook MP3 cannot decode'))};nativeClip.load()});
-  assert(nativeClip.duration>1&&nativeClip.duration<5,'published MP3 is a decodable short word clip');nativeClip.pause();nativeClip.removeAttribute('src');nativeClip.load();
   audioSource().value='system';audioSource().dispatchEvent(new frame.contentWindow.Event('change',{bubbles:true}));
   const memoryMenu=doc().querySelector('#units [data-action="memory"]');
   assert(memoryMenu&&doc().querySelector('[data-unit="0"]').nextElementSibling===memoryMenu,'memory menu follows proper nouns');
@@ -131,10 +153,18 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(doc().getElementById('breadcrumb').textContent.includes('串词速记'),'memory breadcrumb matches the selected menu');
   assert(new Set([...doc().querySelectorAll('.memory-entry')].map(row=>row.dataset.id)).size===165,'memory map covers every photographed vocabulary entry');checkLayout();
   assert(doc().querySelector('.memory-entry[data-id="u4-6"] .memory-word-text').textContent==='child / Children','memory map displays both forms too');
+  for(const row of doc().querySelectorAll('.memory-entry')){
+   const word=row.querySelector('.memory-word-text'),style=frame.contentWindow.getComputedStyle(word);
+   assert(style.fontSize===normalWordSize,'memory words share textbook font size: '+word.textContent);
+   assert(word.getBoundingClientRect().height<=parseFloat(style.lineHeight)+1&&word.scrollWidth<=word.clientWidth+1,'memory word stays on one line without clipping: '+word.textContent);
+   assert(row.querySelector('[data-action="speak-example"]')?.textContent.trim()&&row.querySelector('.memory-example-meaning')?.textContent.trim(),'every memory word includes an English example and Chinese meaning');
+  }
+  assert(doc().querySelectorAll('.memory-group-header [data-action="read-group"]').length===40,'each memory group has its own reading button');
+  assert(!doc().querySelector('.auto-reading-controls'),'memory reading has no floating toolbar');
   const laterStar=doc().querySelector('[data-group="animal-friends"] [data-action="flag"][data-id="u6-3"]');laterStar.focus({preventScroll:true});laterStar.click();
   assert(doc().activeElement.closest('.memory-group')?.dataset.group==='animal-friends','repeated vocabulary keeps focus in the same memory group');
   doc().querySelector('[data-action="conceal"]').click();
-  assert(!doc().querySelector('.memory-ipa,.memory-tip')&&[...doc().querySelectorAll('.memory-word-text')].every(word=>!word.textContent.trim()),'memory recall removes spelling, phonetics and spelling hints');
+  assert(!doc().querySelector('.memory-ipa,.memory-tip,.memory-example')&&[...doc().querySelectorAll('.memory-word-text')].every(word=>!word.textContent.trim()),'memory recall removes spelling, phonetics and spelling hints');
   doc().querySelector('[data-action="conceal"]').click();
   const memorySearch=doc().getElementById('memory-search');memorySearch.value='rain';memorySearch.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
   assert([...doc().querySelectorAll('.memory-entry')].filter(row=>!row.hidden).every(row=>row.querySelector('.memory-word-text').textContent.includes('rain')),'memory search filters the real entries');
@@ -202,6 +232,34 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(autoRead().textContent==='自动朗读','an interrupted device voice does not leave automatic reading stuck');installSpeech();
 
 
+  change(audioSource(),'textbook');doc().querySelector('#units [data-action="memory"]').click();
+  const preloadRequests=[],nativeFetch=frame.contentWindow.fetch.bind(frame.contentWindow);
+  frame.contentWindow.fetch=(url,options)=>{preloadRequests.push(String(url));return nativeFetch(url,options)};
+  const groupButton=()=>doc().querySelector('[data-group="at-rhyme"] [data-action="read-group"]');
+  frame.contentWindow.Audio=class {constructor(src){this.src=src;recordings.push(this)}play(){return Promise.resolve()}pause(){this.paused=true}};
+  groupButton().click();const memoryAudio=recordings.at(-1),staleGroupEnd=memoryAudio.onended;
+  assert(memoryAudio.src.endsWith('/words/u6-3.mp3')&&groupButton().textContent.includes('暂停'),'group reading begins with its first word');
+  memoryAudio.onended();assert(memoryAudio.src.endsWith('/words/u7-13.mp3'),'group reading advances only within its module');
+  groupButton().click();assert(memoryAudio.paused&&groupButton().textContent.includes('继续'),'group reading pauses from its own button');
+  groupButton().click();assert(recordings.at(-1)===memoryAudio,'group resumes on the same audio element');
+  doc().querySelector('[data-group="eat-meat"] [data-action="read-group"]').click();const secondGroup=recordings.at(-1);staleGroupEnd();
+  assert(secondGroup.src.endsWith('/words/u6-18.mp3')&&groupButton().textContent==='朗读单词','starting another group stops the previous group');
+  secondGroup.onended();secondGroup.onended();assert(doc().querySelector('[data-group="eat-meat"] [data-action="read-group"]').textContent==='朗读单词','group stops after its last word');
+  assert(preloadRequests.some(url=>url.endsWith('/words/u6-18.mp3')),'starting a memory group preloads its words');
+  const firstExample=doc().querySelector('[data-action="speak-example"]'),exampleText=firstExample.querySelector('[lang="en"]').textContent;
+  const beforeExample=spoken.length,beforeExampleAudio=recordings.length;
+  firstExample.click();
+  assert(spoken.length===beforeExample+1&&spoken.at(-1).text===exampleText&&spoken.at(-1).voice===usRole,'example uses the selected device voice even when textbook audio is selected');
+  assert(recordings.length===beforeExampleAudio&&audioSource().value==='textbook'&&doc().getElementById('speech-note').hidden,'device example playback leaves textbook source selected without a missing-recording notice');
+  groupButton().click();const beforeFilter=memoryAudio.src;
+  const search=doc().getElementById('memory-search');search.value='hat';search.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+  assert(groupButton().textContent==='朗读单词','filtering memory words stops the active group');
+  groupButton().click();const filteredGroup=recordings.at(-1);assert(filteredGroup.src.endsWith('/words/u7-13.mp3'),'group reading starts with the first visible matching word');
+  filteredGroup.onended();filteredGroup.onended();assert(groupButton().textContent==='朗读单词','filtered group reads only its two visible matches');
+  doc().querySelector('[data-group="at-rhyme"] [data-action="practice-group"]').click();
+  assert(preloadRequests.some(url=>url.endsWith('/words/u6-3.mp3')),'entering group dictation preloads the group recordings');
+  frame.contentWindow.fetch=nativeFetch;frame.contentWindow.Audio=NativeAudio;
+  doc().querySelector('[data-unit="1"]').click();change(audioSource(),'system');
   change(accent(),'en-GB');doc().getElementById('voice-preview').click();
   assert(spoken.at(-1).voice===gbVoice,'British selection uses British voice');
   testVoices=[gbVoice];installSpeech();change(accent(),'en-US');
@@ -309,12 +367,13 @@ async function checkDeployment(){
   if(url.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
   const relative=decodeURIComponent(url.pathname.slice('/repo-name/'.length)),file=path.resolve(root,!relative||relative.endsWith('/')?relative+'index.html':relative);
   if(!url.pathname.startsWith('/repo-name/')||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){missing.push(url.pathname);res.writeHead(404);res.end();return;}
+  res.setHeader('Content-Length',fs.statSync(file).size);
   res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.svg':'image/svg+xml','.mp3':'audio/mpeg'})[path.extname(file)]||'text/plain');fs.createReadStream(file).pipe(res);
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'arcade-deploy-check-'));
  try{
-  for(const [width,height] of [[1280,900],[390,740],[375,667],[320,568]]){
+  for(const [width,height] of [[1440,900],[1280,900],[900,900],[390,740],[375,667],[320,568]]){
    const output=await new Promise((resolve,reject)=>{
     const child=spawn(chrome,['--headless','--no-sandbox','--disable-gpu','--no-first-run','--user-data-dir='+path.join(dir,String(width)),'--window-size=1400,1800','--timeout=12000','--virtual-time-budget=15000','--dump-dom','http://127.0.0.1:'+server.address().port+'/repo-name/__verify.html?width='+width+'&height='+height],{stdio:['ignore','pipe','ignore']});let result='';
     const timeout=setTimeout(()=>child.kill('SIGKILL'),20000);

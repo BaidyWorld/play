@@ -23,3 +23,15 @@ test('memory groups have unique IDs, valid content and complete vocabulary cover
   assert.deepEqual([...vocabulary].filter(word => !covered.has(word)), [], 'Uncovered textbook entries');
   assert.equal(covered.size, 165);
 });
+
+
+test('every textbook entry has a short bilingual example', async () => {
+  const {examples} = await import('../examples.mjs');
+  assert.deepEqual(Object.keys(examples).sort(), entries.map(entry => entry.id).sort());
+  for (const entry of entries) {
+    const [english, chinese] = examples[entry.id];
+    assert.match(english, /[A-Za-z]/, entry.word);
+    assert.match(chinese, /[\u4e00-\u9fff]/, entry.word);
+    assert.ok(english.length <= 90, `Keep examples short: ${entry.word}`);
+  }
+});

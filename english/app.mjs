@@ -36,6 +36,7 @@ const root = document.querySelector('#app');
 let progress = {again:[],counts:{},last:[]};
 let unitId = 1, filter = 'all', concealed = false, mode = 'study';
 let round = null, sourceIds = [], groupOffset = 0;
+const heardIds = new Set();
 let memoryQuery = '', practiceContext = '', practiceReturnMode = 'study';
 const entryByWord = new Map(entries.map(entry=>[entry.word,entry]));
 let synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
@@ -182,6 +183,16 @@ function speak(text, button, entryId) {
     speechNotice('这次没有播放成功，请检查设备音量，或换用浏览器再试。');
   }
 }
+function setReadingSettings(expanded) {
+  const toggle=document.querySelector('#reading-settings-toggle');
+  toggle.setAttribute('aria-expanded',String(expanded));
+  toggle.setAttribute('aria-label',`${expanded?'收起':'展开'}朗读设置`);
+  toggle.title=`${expanded?'收起':'展开'}朗读设置`;
+  document.querySelector('.reading-settings').classList.toggle('is-collapsed',!expanded);
+}
+document.querySelector('#reading-settings-toggle').addEventListener('click',event=>{
+  setReadingSettings(event.currentTarget.getAttribute('aria-expanded')!=='true');
+});
 document.querySelector('#source-select').addEventListener('change',event=>{
   stopSpeech(); speechNotice('');
   audioSource=event.target.value==='system'?'system':'textbook';
@@ -312,13 +323,13 @@ function practiceView() {
       <div class="practice-listening"><p class="prompt-label">听一听，把记住的写在纸上</p><h2 class="practice-meaning" id="practice-prompt">${esc(entry.meaning)}</h2><button id="listen" class="listen-button" data-action="speak" data-id="${entry.id}" aria-label="重听当前题目" aria-keyshortcuts="Space">${icon('sound',20)}重听一遍</button><p class="practice-hint">先跟读，再动笔。<br>空格可以重听，左右键切换题目。</p></div>
       <div class="practice-checking" aria-label="答案与核对">
         <div class="practice-answer-content">${round.revealed?`<div class="answer-panel"><p class="prompt-label">${result?`本题已记为：${result.correct?'写对了':'再练练'}，可以重新核对`:'对照纸上的拼写，认真核对'}</p><div class="answer-word ${entry.word.length>15?'long':''}" lang="en">${coloredWord(entry.word)}</div><p class="ipa" lang="en">/${esc(entry.ipa)}/</p>${entry.note?`<p class="entry-note">${esc(entry.note)}</p>`:''}${phonicsLegend()}</div>`:`<div class="answer-placeholder">${icon('pencil',30)}<h3>先写，再核对</h3><p>在纸上写好后，<br>按回车或点击下方展开答案。</p></div>`}</div>
-        <div class="practice-actions"><button id="play-recording" class="secondary-button" data-action="speak" data-id="${entry.id}" aria-keyshortcuts="Space">播放录音</button>${round.revealed?`<button id="grade-wrong" class="secondary-button" data-action="grade-wrong">${icon('repeat',17)}再练练</button><button id="grade-right" class="primary-button" data-action="grade-right" aria-keyshortcuts="Enter">${icon('check',17)}写对了</button>`:`<button class="primary-button" data-action="reveal" aria-keyshortcuts="Enter">${icon('eye',17)}展开答案</button>`}</div>
+        <div class="practice-actions">${round.revealed?`<button id="grade-wrong" class="secondary-button" data-action="grade-wrong">${icon('repeat',17)}再练练</button><button id="grade-right" class="primary-button" data-action="grade-right" aria-keyshortcuts="Enter">${icon('check',17)}写对了</button>`:heardIds.has(entry.id)?`<button class="primary-button" data-action="reveal" aria-keyshortcuts="Enter">${icon('eye',17)}展开答案</button>`:`<button id="play-recording" class="primary-button" data-action="speak" data-id="${entry.id}" aria-keyshortcuts="Enter Space">${icon('sound',17)}播放录音</button>`}</div>
       </div>
     </div>
     <nav class="question-navigation" aria-label="切换听写题目"><button class="secondary-button" data-action="previous-question" aria-keyshortcuts="ArrowLeft" ${round.index===0?'disabled':''}>${icon('back',15)}上一题</button><span>已核对 ${done} / ${total}</span><button class="secondary-button" data-action="next-question" aria-keyshortcuts="ArrowRight" ${round.index===total-1&&done<total?'disabled':''}>${done===total&&round.index===total-1?'本组结果':'下一题'}${icon('arrow',15)}</button></nav>
     <div class="practice-progress" aria-hidden="true"><div class="practice-progress-fill" style="width:${done/total*100}%"></div></div>
   </section>
-  <p class="keyboard-help"><span><kbd>←</kbd><kbd>→</kbd> 切换题目</span><span><kbd>空格</kbd> 重听</span><span><kbd>回车</kbd> 展开 / 写对了</span></p><p class="practice-bottom">每题都核对后再完成本组，跳过的题目稍后会回到。<br><span data-voice-status>${voiceLabel()}</span> · 音标采用英式标注</p>`;
+  <p class="keyboard-help"><span><kbd>←</kbd><kbd>→</kbd> 切换题目</span><span><kbd>空格</kbd> 重听</span><span><kbd>回车</kbd> 播放 / 展开 / 写对了</span></p><p class="practice-bottom">每题都核对后再完成本组，跳过的题目稍后会回到。<br><span data-voice-status>${voiceLabel()}</span> · 音标采用英式标注</p>`;
 }
 function summaryView() {
   const correct = round.results.filter(r=>r.correct).length;
@@ -334,6 +345,7 @@ function render(focusSelector) {
     const group=active.closest('.memory-group')?.dataset.group;
     if (group) restore=`[data-group="${group}"] ${restore}`;
   }
+  document.body.classList.toggle('practice-mode',mode==='practice');
   renderNav();
   root.innerHTML = mode==='study'?studyView():mode==='memory'?memoryView():practiceView();
   if (mode==='memory') filterMemory();
@@ -348,6 +360,8 @@ function beginPractice(ids = currentEntries().map(e=>e.id), context = '') {
   speechNotice('');
   sourceIds = ids;
   groupOffset = 0;
+  heardIds.clear();
+  if (window.matchMedia('(max-width:760px)').matches) setReadingSettings(false);
   round = startRound(sourceIds);
   mode = 'practice';
   render('#listen');
@@ -379,7 +393,15 @@ root.addEventListener('click',event=>{
   const button = event.target.closest('button[data-action]');
   if (!button) return;
   const action = button.dataset.action;
-  if (action==='speak') { const entry=byId.get(button.dataset.id); if (entry) speak(entry.speak,button,entry.id); return; }
+  if (action==='speak') {
+    const entry=byId.get(button.dataset.id);
+    if (entry) {
+      const firstListen=mode==='practice'&&round?.ids[round.index]===entry.id&&!round.revealed&&!heardIds.has(entry.id);
+      if (firstListen) { heardIds.add(entry.id); render('[data-action="reveal"]'); }
+      speak(entry.speak,firstListen?root.querySelector('#listen'):button,entry.id);
+    }
+    return;
+  }
   if (action==='flag') {
     const id = button.dataset.id;
     const flagged = progress.again.includes(id);
@@ -414,8 +436,9 @@ root.addEventListener('click',event=>{
     render(round.index>=round.ids.length?'#summary-title':'#listen');
     announce(round.index>=round.ids.length?'本轮核对完成。':`第 ${round.index+1} 条，请先听读，再写在纸上。`);
   }
-  else if (action==='next') { groupOffset+=5; round=startRound(sourceIds,groupOffset); render('#listen'); }
+  else if (action==='next') { groupOffset+=5; heardIds.clear(); round=startRound(sourceIds,groupOffset); render('#listen'); }
   else if (action==='retry' && round) {
+    heardIds.clear();
     round=startRound(round.results.filter(r=>!r.correct).map(r=>r.id));
     render('#listen');
   }
@@ -423,14 +446,14 @@ root.addEventListener('click',event=>{
 document.addEventListener('keydown',event=>{
   if (mode!=='practice' || !round?.ids.length || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const target=event.target instanceof Element?event.target:null;
-  if (target?.closest('input,select,textarea,[contenteditable],a,.reading-settings,#units')) return;
+  if (target?.closest('input,select,textarea,[contenteditable],a,.reading-settings,#reading-settings-toggle,#units')) return;
   const action=target?.closest('button')?.dataset.action;
   if (action && !['speak','reveal','grade-right','previous-question','next-question'].includes(action)) return;
   const active=round.index<round.ids.length;
   const selector=event.key==='ArrowLeft'?'[data-action="previous-question"]':
     event.key==='ArrowRight'?(active?'[data-action="next-question"]':null):
     event.key===' '?(active?'#listen':null):
-    event.key==='Enter'?(active?(round.revealed?'#grade-right':'[data-action="reveal"]'):null):null;
+    event.key==='Enter'?(active?(round.revealed?'#grade-right':heardIds.has(round.ids[round.index])?'[data-action="reveal"]':'#play-recording'):null):null;
   if (!selector) return;
   event.preventDefault();
   if (!event.repeat) root.querySelector(selector)?.click();

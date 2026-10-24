@@ -28,10 +28,11 @@
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-left"><a class="back-hall" href="../index.html">〈 返回大厅</a><span id="breadcrumb">我的课本 / Unit 1</span></div>
-        <span class="paper-reminder"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.6"/><path d="M10 12h5m-5 4h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>准备好纸和笔</span>
+        <div class="topbar-right"><button id="reading-settings-toggle" class="reading-settings-toggle" type="button" aria-expanded="true" aria-controls="reading-settings-content" aria-label="收起朗读设置" title="收起朗读设置"><span>朗读设置</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><span class="paper-reminder"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.6"/><path d="M10 12h5m-5 4h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>准备好纸和笔</span></div>
       </header>
       <main id="main" tabindex="-1">
         <section class="reading-settings" aria-label="朗读设置">
+          <div id="reading-settings-content">
           <div class="reading-controls">
             <span class="reading-label">朗读设置</span>
             <label class="source-field" for="source-select">音源<select id="source-select"><option value="textbook">教材原声（双读）</option><option value="system">设备朗读</option></select></label>
@@ -40,13 +41,14 @@
             <button id="voice-preview" class="secondary-button voice-preview" type="button">试听角色</button>
           </div>
           <p id="voice-help" class="voice-help" role="status">选择喜欢的声音，一起读英语。</p>
+          </div>
         </section>
+        <div class="notice-stack"><p id="storage-note" class="notice storage-notice" role="status" hidden></p><p id="speech-note" class="notice" role="status" hidden></p></div>
         <div id="app"></div>
       </main>
       <footer class="footer"><span>跟着课本学，用自己的笔记住。</span><span>音标采用英式标注 · 核对结果由你记录</span></footer>
     </div>
   </div>
-  <div class="notice-stack"><p id="storage-note" class="notice storage-notice" role="status" hidden></p><p id="speech-note" class="notice" role="status" hidden></p></div>
   <div id="announcement" class="sr-only" aria-live="polite"></div>
 </body>
 </html>

@@ -6,9 +6,20 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
 (async()=>{
  const assert=(ok,msg)=>{if(!ok)throw Error(msg)},frame=document.getElementById('page'),prefix=location.origin+'/repo-name/';
  frame.style.width=new URLSearchParams(location.search).get('width')+'px';
+ frame.style.height=(new URLSearchParams(location.search).get('height')||1700)+'px';
  const load=action=>new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('page load timeout')),10000);frame.onload=()=>{clearTimeout(timeout);resolve()};action()});
  const go=url=>load(()=>frame.src=url),doc=()=>frame.contentDocument;
  const checkLayout=()=>assert(doc().documentElement.scrollWidth<=frame.clientWidth,'horizontal overflow: '+frame.src);
+ const checkPracticeViewport=()=>{
+  if(frame.clientWidth>760)return;
+  checkLayout();
+  assert(doc().documentElement.scrollHeight<=frame.clientHeight+1,'mobile dictation stays within one viewport');
+  for(const button of doc().querySelectorAll('.practice-actions button,.question-navigation button,#reading-settings-toggle')){
+   const rect=button.getBoundingClientRect();
+   assert(rect.top>=0&&rect.bottom<=frame.clientHeight+1,'mobile action stays visible: '+button.textContent);
+   assert(button.contains(doc().elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)),'mobile action is not covered: '+button.textContent);
+  }
+ };
  try{
   await go(prefix);assert(doc().querySelectorAll('.card').length===4,'three games and English practice on homepage');checkLayout();
   for(const link of doc().querySelectorAll('a'))assert(link.href.startsWith(prefix),'link escapes repository prefix');
@@ -16,6 +27,19 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
   assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  if(frame.clientWidth<=760){
+   const nav=doc().getElementById('units');
+   assert(nav.scrollWidth<=nav.clientWidth,'mobile course menu shows every item without horizontal scrolling');
+   assert(nav.querySelectorAll('button').length===10,'all eight units and both special sections are in the course menu');
+   for(const button of nav.querySelectorAll('button')){
+    const rect=button.getBoundingClientRect();
+    assert(rect.left>=0&&rect.right<=frame.clientWidth,'every mobile course entry is visible');
+   }
+  }
+  const settingsEntry=doc().getElementById('reading-settings-toggle');
+  assert(settingsEntry?.closest('.topbar'),'reading settings uses the top toolbar entry on both platforms');
+  settingsEntry.click();assert(doc().querySelector('.reading-settings').getBoundingClientRect().height===0,'toolbar button hides the whole settings section');
+  settingsEntry.click();assert(settingsEntry.getAttribute('aria-expanded')==='true'&&doc().querySelector('.reading-settings').getBoundingClientRect().height>0,'toolbar button expands settings again');checkLayout();
   const audioSource=()=>doc().getElementById('source-select');
   assert(audioSource()?.value==='textbook','textbook original is the first default audio source');
   assert(doc().getElementById('accent-select').disabled&&doc().getElementById('voice-select').disabled,'original recording retains its own accent and performers');
@@ -58,7 +82,7 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   const memoryFirstWord=doc().querySelector('.memory-group .memory-entry').dataset.id;
   doc().querySelector('[data-action="practice-group"]').click();
   assert(doc().querySelector('.practice-title p').textContent.includes(memoryGroupTitle),'group dictation names its cross-unit source');
-  doc().querySelector('[data-action="reveal"]').click();
+  doc().getElementById('listen').click();doc().querySelector('[data-action="reveal"]').click();
   assert(doc().querySelector('[data-action="speak"]').dataset.id===memoryFirstWord,'group practice uses that group vocabulary');
   assert(doc().querySelector('#units [data-action="memory"]').getAttribute('aria-current')==='true','group practice stays under the memory menu');
   doc().querySelector('#app [data-action="memory"]').click();assert(doc().querySelector('.memory-group'),'group practice returns to memory map');
@@ -86,6 +110,9 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   installSpeech();change(audioSource(),'textbook');doc().querySelector('[data-unit="0"]').click();
   const beforeFallback=spoken.length;doc().querySelector('[data-action="speak"]').click();
   assert(spoken.length===beforeFallback+1&&spoken.at(-1).text==='China'&&!doc().getElementById('speech-note').hidden,'unrecorded proper noun explicitly uses device pronunciation');
+  doc().querySelector('[data-action="practice"]').click();doc().getElementById('play-recording').click();
+  assert(!doc().getElementById('speech-note').hidden,'proper-noun dictation keeps the original-source fallback explanation');checkPracticeViewport();
+  if(frame.clientWidth<=760){doc().getElementById('reading-settings-toggle').click();checkPracticeViewport();doc().getElementById('reading-settings-toggle').click();}
   doc().querySelector('[data-unit="1"]').click();change(audioSource(),'system');
   testVoices=[usVoice];installSpeech();assert(audioSource().value==='system','audio source preference survives refresh');assert(accent().value==='en-US','automatic default uses available American voice');
   testVoices=[gbVoice,usVoice,usRole];installSpeech();assert(accent().value==='en-GB','late British voices regain automatic default');
@@ -119,20 +146,35 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   doc().querySelector('[data-action="practice"]').click();
   assert(!doc().querySelector('.answer-word')&&!doc().querySelector('[data-action="grade-right"]'),'paper practice hides answers and grading');checkLayout();
   const actionButtons=()=>[...doc().querySelectorAll('.practice-checking .practice-actions button')];
-  assert(actionButtons().map(button=>button.dataset.action).join(',')==='speak,reveal','practice buttons start with playback then reveal');
+  const settingsToggle=doc().getElementById('reading-settings-toggle');
+  if(frame.clientWidth<=760){
+   assert(settingsToggle?.getAttribute('aria-expanded')==='false','mobile dictation collapses reading settings on entry');
+   assert(doc().getElementById('reading-settings-content').getBoundingClientRect().height===0,'collapsed settings hide the controls');
+   checkPracticeViewport();settingsToggle.click();
+   assert(settingsToggle.getAttribute('aria-expanded')==='true'&&doc().getElementById('source-select').getBoundingClientRect().height>0,'settings can expand without leaving the question');
+   checkPracticeViewport();settingsToggle.click();checkPracticeViewport();
+  }
+  const beforeSettingsKey=spoken.length;
+  for(const value of ['Enter',' ']){
+   const event=new frame.contentWindow.KeyboardEvent('keydown',{key:value,bubbles:true,cancelable:true});
+   settingsToggle.dispatchEvent(event);
+   assert(!event.defaultPrevented&&spoken.length===beforeSettingsKey,'settings toggle keeps native keyboard activation: '+value);
+  }
+  assert(actionButtons().length===1&&actionButtons()[0].textContent==='播放录音','dictation starts with one long playback action');
+  const mainButtonRect=actionButtons()[0].getBoundingClientRect();
   const spokenBeforeButton=spoken.length;actionButtons()[0].click();
-  assert(spoken.length===spokenBeforeButton+1&&spoken.at(-1).text==='happy'&&!doc().querySelector('.answer-word'),'bottom playback repeats the question without revealing it');
-  const playButtonLeft=actionButtons()[0].getBoundingClientRect().left;
-  const playButtonWidth=actionButtons()[0].getBoundingClientRect().width;
+  assert(spoken.length===spokenBeforeButton+1&&spoken.at(-1).text==='happy'&&!doc().querySelector('.answer-word'),'main playback repeats the question without revealing it');
+  assert(actionButtons().length===1&&actionButtons()[0].dataset.action==='reveal','main playback changes into reveal');
+  assert(actionButtons()[0].getBoundingClientRect().left===mainButtonRect.left&&actionButtons()[0].getBoundingClientRect().width===mainButtonRect.width,'play and reveal use the same long button position');
   const key=(value,options={})=>frame.contentWindow.document.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown',{key:value,bubbles:true,cancelable:true,...options}));
   const question=()=>doc().querySelector('.practice-card-top').textContent;
   const cardHeight=doc().querySelector('.practice-card').getBoundingClientRect().height;
   const navTop=doc().querySelector('.question-navigation')?.getBoundingClientRect().top;
-  key('Enter');assert(doc().querySelector('.answer-word')?.textContent==='happy','Enter reveals before grading');
-  assert(actionButtons().map(button=>button.dataset.action).join(',')==='speak,grade-wrong,grade-right','revealed buttons keep playback before both grading choices');
-  assert(actionButtons()[0].getBoundingClientRect().left===playButtonLeft&&actionButtons()[0].getBoundingClientRect().width===playButtonWidth,'playback button stays in place when revealing');
-  const spokenAfterReveal=spoken.length;actionButtons()[0].click();
-  assert(spoken.length===spokenAfterReveal+1&&spoken.at(-1).text==='happy','bottom playback remains usable after revealing');
+  key('Enter');assert(doc().querySelector('.answer-word')?.textContent==='happy','Enter reveals after playback');
+  assert(actionButtons().map(button=>button.dataset.action).join(',')==='grade-wrong,grade-right','revealed buttons offer the two grading choices');
+  checkPracticeViewport();
+  const spokenAfterReveal=spoken.length;doc().getElementById('listen').click();
+  assert(spoken.length===spokenAfterReveal+1&&spoken.at(-1).text==='happy','repeat listening remains usable after revealing');
   assert(doc().querySelector('.practice-card').getBoundingClientRect().height===cardHeight,'revealing the answer does not resize the card');
   assert(doc().querySelector('.question-navigation').getBoundingClientRect().top===navTop,'answer reveal does not move navigation');
   const spokenBeforeReplay=spoken.length;key(' ');assert(spoken.length===spokenBeforeReplay+1&&spoken.at(-1).text==='happy','Space replays the current word');
@@ -142,25 +184,26 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(question().includes('2 / 5')&&!selectKey.defaultPrevented,'voice dropdown keeps its native keyboard behavior');
   key('ArrowLeft');assert(question().includes('1 / 5'),'Left moves to the previous question');
   key('Enter');key('Enter');assert(question().includes('2 / 5'),'Enter grades a revealed answer and advances');
+  assert(actionButtons()[0].textContent==='播放录音','new question resets the main action to playback');checkPracticeViewport();
   key('ArrowLeft');assert(doc().querySelector('.answer-word')?.textContent==='happy','revisiting a graded question shows its answer');
   doc().getElementById('grade-wrong').click();
   assert(JSON.parse(frame.contentWindow.localStorage.getItem('english-notebook-progress-v1')).counts['u1-1']===1,'changing a grade does not count the same attempt twice');
   doc().querySelector('[data-action="study"]').click();doc().querySelector('[data-action="practice"]').click();
   for(let step=0;step<5;step++)key('ArrowRight');
   assert(question().includes('5 / 5'),'Right stops at the last ungraded question');
-  key('Enter');key('Enter');assert(question().includes('1 / 5')&&!doc().querySelector('.summary-body'),'skipped questions are not silently marked complete');
+  key('Enter');key('Enter');key('Enter');assert(question().includes('1 / 5')&&!doc().querySelector('.summary-body'),'skipped questions are not silently marked complete');
   doc().querySelector('[data-action="study"]').click();doc().querySelector('[data-action="practice"]').click();
   for(let i=0;i<5;i++){
-   doc().querySelector('[data-action="reveal"]').click();
+   doc().getElementById('listen').click();doc().querySelector('[data-action="reveal"]').click();
    assert(doc().querySelector('.answer-word').textContent===['happy','sad','angry','tired','boy'][i],'paper practice follows textbook sequence');
    doc().querySelector(i===0?'[data-action="grade-wrong"]':'[data-action="grade-right"]').click();
   }
   assert(doc().querySelector('.summary-stats').textContent.includes('4'),'manual results summarized');
   const summaryVowel=doc().querySelector('.result-row strong .ph-vowel');
   assert(frame.contentWindow.getComputedStyle(summaryVowel).color===vowelColor,'summary retains phonics coloring');
-  doc().querySelector('[data-action="retry"]').click();doc().querySelector('[data-action="reveal"]').click();doc().querySelector('[data-action="grade-right"]').click();
+  doc().querySelector('[data-action="retry"]').click();doc().getElementById('listen').click();doc().querySelector('[data-action="reveal"]').click();doc().querySelector('[data-action="grade-right"]').click();
   assert(doc().querySelector('[data-action="next"]'),'retry preserves next group');
-  doc().querySelector('[data-action="next"]').click();doc().querySelector('[data-action="reveal"]').click();
+  doc().querySelector('[data-action="next"]').click();doc().getElementById('listen').click();doc().querySelector('[data-action="reveal"]').click();
   assert(doc().querySelector('.answer-word').textContent==='girl','retry continues original unit at sixth entry');
   await load(()=>frame.contentWindow.location.reload());
   assert(doc().querySelector('[data-action="flag"]').getAttribute('aria-pressed')==='true','English review flags persist on refresh');
@@ -201,15 +244,15 @@ async function checkDeployment(){
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'arcade-deploy-check-'));
  try{
-  for(const width of [1280,390]){
+  for(const [width,height] of [[1280,900],[390,740],[375,667],[320,568]]){
    const output=await new Promise((resolve,reject)=>{
-    const child=spawn(chrome,['--headless','--no-sandbox','--disable-gpu','--no-first-run','--user-data-dir='+path.join(dir,String(width)),'--window-size=1400,1800','--timeout=12000','--virtual-time-budget=15000','--dump-dom','http://127.0.0.1:'+server.address().port+'/repo-name/__verify.html?width='+width],{stdio:['ignore','pipe','ignore']});let result='';
+    const child=spawn(chrome,['--headless','--no-sandbox','--disable-gpu','--no-first-run','--user-data-dir='+path.join(dir,String(width)),'--window-size=1400,1800','--timeout=12000','--virtual-time-budget=15000','--dump-dom','http://127.0.0.1:'+server.address().port+'/repo-name/__verify.html?width='+width+'&height='+height],{stdio:['ignore','pipe','ignore']});let result='';
     const timeout=setTimeout(()=>child.kill('SIGKILL'),20000);
     child.stdout.on('data',data=>{result+=data;if(/<p>CHECK_(PASS|FAIL):/.test(result))child.kill('SIGKILL')});
     child.on('error',error=>{clearTimeout(timeout);reject(error)});child.on('close',()=>{clearTimeout(timeout);resolve(result)});
    });
    if(!output.includes('<p>CHECK_PASS:'))throw Error(output.match(/<p>CHECK_FAIL:[^<]+/)?.[0]||'Browser prefix check did not complete');
-   console.log(width+'px: '+output.match(/<p>(CHECK_PASS:[^<]+)/)[1]);
+   console.log(width+'x'+height+': '+output.match(/<p>(CHECK_PASS:[^<]+)/)[1]);
   }
   if(missing.length)throw Error('Missing resources: '+missing.join(', '));
  }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(dir,{recursive:true,force:true});}

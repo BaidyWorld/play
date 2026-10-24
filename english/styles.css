@@ -102,3 +102,6 @@
 #auto-reading-status{font-size:12px;line-height:1.6;color:var(--muted)}
 .word-card.reading-current{border-color:var(--green);box-shadow:0 0 0 2px #214f4220}
 @media(max-width:760px){.auto-reading-controls{gap:8px;margin-bottom:14px}#auto-reading-status{flex-basis:100%;font-size:11px}}
+
+.word-card:has(.word-text.long){grid-column:span 2}
+@media(max-width:760px){.word-card:has(.word-text.long){grid-column:1/-1}}

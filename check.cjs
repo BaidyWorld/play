@@ -27,6 +27,14 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
   assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  const wordGrid=doc().querySelector('.word-grid'),shortCard=doc().querySelector('.word-card');
+  const cardGap=parseFloat(frame.contentWindow.getComputedStyle(wordGrid).columnGap);
+  const expectedLongWidth=frame.clientWidth<=760?wordGrid.getBoundingClientRect().width:shortCard.getBoundingClientRect().width*2+cardGap;
+  for(const text of doc().querySelectorAll('.word-text.long')){
+   const card=text.closest('.word-card');
+   assert(Math.abs(card.getBoundingClientRect().width-expectedLongWidth)<1,'long vocabulary cards span two desktop columns or one full mobile row');
+   assert(text.scrollWidth<=text.clientWidth+1,'long vocabulary stays inside its card');
+  }
   if(frame.clientWidth<=760){
    const nav=doc().getElementById('units');
    assert(nav.scrollWidth<=nav.clientWidth,'mobile course menu shows every item without horizontal scrolling');

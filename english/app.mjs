@@ -309,9 +309,28 @@ function studyView() {
   <p class="study-tip">${icon('info',14)}<span>点击英文或小喇叭听发音；点星星收进再练词。短语、句子也可以跟读。</span></p>
   ${shown.length?`<div class="start-strip"><div class="strip-text"><strong>准备好了吗？试着默写一小组。</strong><p>每轮最多 5 条，听读 → 纸上写 → 展开核对。</p></div><button class="primary-button" data-action="practice">${icon('pencil',16)}开始纸笔听写${icon('arrow',16)}</button></div>`:''}</section>`;
 }
+function fitWordCards() {
+  if (mode!=='study'||concealed) return;
+  const cards=[...root.querySelectorAll('.word-card')];
+  for (const card of cards) {
+    card.classList.remove('long-card','full-width-card');
+    card.querySelector('.word-text').classList.remove('long');
+  }
+  for (const card of cards) {
+    const text=card.querySelector('.word-text');
+    const button=card.querySelector('.word-button');
+    const icon=card.querySelector('.play-icon');
+    const gap=parseFloat(getComputedStyle(button).columnGap);
+    const fits=()=>text.scrollWidth<=button.clientWidth-icon.offsetWidth-gap+1;
+    if (!fits()) { card.classList.add('long-card'); text.classList.add('long'); }
+    if (!fits()) card.classList.add('full-width-card');
+  }
+}
+window.addEventListener('resize',fitWordCards);
+document.fonts?.ready.then(fitWordCards);
 function wordCard(entry, number) {
   const flagged = progress.again.includes(entry.id);
-  return `<article class="word-card"><div class="card-top"><span class="entry-number">${String(number).padStart(2,'0')}${entry.type!=='word'?`<span class="type-tag">${entry.type==='phrase'?'短语':'句子'}</span>`:''}</span><button class="review-toggle" data-action="flag" data-id="${entry.id}" aria-pressed="${flagged}" aria-label="${flagged?'移出':'加入'}再练词，第 ${number} 条">${icon('star',17,flagged)}</button></div><button class="word-button" data-action="speak" data-id="${entry.id}" aria-label="${concealed?`朗读第 ${number} 条`:`朗读 ${esc(entry.word)}`}"><span class="word-text ${entry.word.length>12?'long':''}" lang="en">${concealed?'<span class="hidden-word" aria-hidden="true"></span>':coloredWord(entry.word)}</span><span class="play-icon">${icon('sound',16)}</span></button>${concealed?'<p class="ipa hidden-ipa">先在纸上写一写</p>':`<p class="ipa" lang="en">/${esc(entry.ipa)}/</p>`}<p class="meaning">${esc(entry.meaning)}</p>${entry.note&&!concealed?`<p class="entry-note">${esc(entry.note)}</p>`:''}</article>`;
+  return `<article class="word-card${entry.word.length>12?' long-card':''}"><div class="card-top"><span class="entry-number">${String(number).padStart(2,'0')}${entry.type!=='word'?`<span class="type-tag">${entry.type==='phrase'?'短语':'句子'}</span>`:''}</span><button class="review-toggle" data-action="flag" data-id="${entry.id}" aria-pressed="${flagged}" aria-label="${flagged?'移出':'加入'}再练词，第 ${number} 条">${icon('star',17,flagged)}</button></div><button class="word-button" data-action="speak" data-id="${entry.id}" aria-label="${concealed?`朗读第 ${number} 条`:`朗读 ${esc(entry.word)}`}"><span class="word-text ${entry.word.length>12?'long':''}" lang="en">${concealed?'<span class="hidden-word" aria-hidden="true"></span>':coloredWord(entry.word)}</span><span class="play-icon">${icon('sound',16)}</span></button>${concealed?'<p class="ipa hidden-ipa">先在纸上写一写</p>':`<p class="ipa" lang="en">/${esc(entry.ipa)}/</p>`}<p class="meaning">${esc(entry.meaning)}</p>${entry.note&&!concealed?`<p class="entry-note">${esc(entry.note)}</p>`:''}</article>`;
 }
 const memoryKinds = {sound:'相似拼写与读音',relation:'对照与词形变化',scene:'场景联想'};
 function memoryView() {
@@ -394,6 +413,7 @@ function render(focusSelector) {
   renderNav();
   root.innerHTML = mode==='study'?studyView():mode==='memory'?memoryView():practiceView();
   if (mode==='memory') filterMemory();
+  fitWordCards();
   updateVoiceStatus();
   const target = focusSelector || restore;
   if (target) root.querySelector(target)?.focus({preventScroll:true});

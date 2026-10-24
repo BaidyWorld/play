@@ -27,12 +27,31 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
   assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  const normalWordSize=frame.contentWindow.getComputedStyle(doc().querySelector('.word-text')).fontSize;
+  const checkWordLabels=expectedSize=>{
+   checkLayout();
+   for(const text of doc().querySelectorAll('.word-text')){
+    const style=frame.contentWindow.getComputedStyle(text);
+    assert(style.fontSize===expectedSize,'long and short vocabulary keep the same font size: '+text.textContent);
+    assert(text.getBoundingClientRect().height<=parseFloat(style.lineHeight)+1,'vocabulary label must stay on one line: '+text.textContent);
+    assert(text.scrollWidth<=text.clientWidth+1,'complete vocabulary label must fit without clipping: '+text.textContent);
+    assert(text.getBoundingClientRect().right<=text.closest('.word-button').querySelector('.play-icon').getBoundingClientRect().left+1,'vocabulary text does not overlap its playback button');
+   }
+  };
+  for(const unit of [1,2,3,4,5,6,7,8,0]){doc().querySelector('[data-unit="'+unit+'"]').click();checkWordLabels(normalWordSize)}
+  doc().querySelector('[data-unit="1"]').click();
+  if(frame.clientWidth>760){
+   const initialWidth=frame.style.width;
+   frame.style.width='320px';frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+   checkWordLabels(frame.contentWindow.getComputedStyle(doc().querySelector('.word-text')).fontSize);
+   frame.style.width=initialWidth;frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));checkWordLabels(normalWordSize);
+  }
   const wordGrid=doc().querySelector('.word-grid'),shortCard=doc().querySelector('.word-card');
   const cardGap=parseFloat(frame.contentWindow.getComputedStyle(wordGrid).columnGap);
   const expectedLongWidth=frame.clientWidth<=760?wordGrid.getBoundingClientRect().width:shortCard.getBoundingClientRect().width*2+cardGap;
   for(const text of doc().querySelectorAll('.word-text.long')){
    const card=text.closest('.word-card');
-   assert(Math.abs(card.getBoundingClientRect().width-expectedLongWidth)<1,'long vocabulary cards span two desktop columns or one full mobile row');
+   assert(card.getBoundingClientRect().width>=expectedLongWidth-1,'long vocabulary cards span at least two desktop columns or one full mobile row');
    assert(text.scrollWidth<=text.clientWidth+1,'long vocabulary stays inside its card');
   }
   if(frame.clientWidth<=760){

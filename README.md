@@ -2,7 +2,7 @@
 
 白帝玩一玩，游戏探索。
 
-这是一个面向刚接触互联网的小学生的小游戏与作品空间：玩一玩，看看作品是怎样做出来的，再尝试改出自己的想法。目前包含一个游戏大厅、三款小游戏，以及解谜游戏的制作教学。
+这是一个面向刚接触互联网的小学生的小游戏与作品空间：玩一玩，看看作品是怎样做出来的，再尝试改出自己的想法。目前包含一个游戏大厅、三款小游戏、一个英语学习工具，以及解谜游戏的制作教学。
 
 项目采用原生 HTML、CSS、SVG 和 Canvas / JavaScript，纯静态运行，无需后端、安装依赖或构建。游戏不设金币和付费解锁。
 
@@ -15,6 +15,7 @@
 | [制作教学](lab/making.html) | 了解解谜逻辑、页面交互和 2.5D 视觉的实现 |
 | [钢铁防线](tank/index.html) | 带领队友守护基地，使用不同武器和技能迎击敌军 |
 | [方块矿洞：寻宝归来](mine/index.html) | 挖掘、铺桥、放火把，收集三颗水晶并回到营地点亮灯塔 |
+| [小小英语本](english/index.html) | 三年级英语点读、音标对照与纸笔默写，收录 165 条词汇与表达 |
 | [城市巷战](tank/index.html?map=city) | 坦克游戏的第二张地图，包含窄巷、街角和建筑掩体 |
 
 游戏页面顶部可返回大厅。坦克的三路防线与城市地图属于同一款游戏，切换地图会重置本局。实验室和坦克的进度保存在页面内存中，离开页面或刷新会重新开始。方块矿洞使用浏览器本地存储自动保存，刷新后可继续；浏览器禁用存储时会提示，仍可游玩。
@@ -27,7 +28,7 @@
 python3 -m http.server 4173 --bind 127.0.0.1
 ```
 
-浏览器打开 [本地游戏大厅](http://127.0.0.1:4173/)。也可直接用浏览器打开根目录 `index.html`。在 GitHub 仓库页面中点击 HTML 文件只会查看源码，试玩请使用本地预览或部署后的站点。
+浏览器打开 [本地游戏大厅](http://127.0.0.1:4173/)。大厅及原有游戏也可直接用浏览器打开根目录 `index.html`；英语练习使用 JavaScript 模块，需要通过上述 HTTP 服务或 GitHub Pages 打开。在 GitHub 仓库页面中点击 HTML 文件只会查看源码，试玩请使用本地预览或部署后的站点。
 
 ## 操作提示
 
@@ -52,6 +53,10 @@ python3 -m http.server 4173 --bind 127.0.0.1
 
 **方块矿洞：**WASD／方向键移动并调整朝向，空格使用当前工具，点击相邻方块也可使用。数字 1–3 选择镐子、石块、火把，4 打开地图，5 打开背包，Esc 暂停。触摸屏提供方向与使用按钮。相同矿洞编号生成相同地图；新探险替换存档前会确认。
 
+## 英语纸笔练习
+
+打开 [小小英语本](english/index.html)，选择单元，点击单词或喇叭听读。跟读并在纸上写，可遮住英文回忆；纸笔听写每轮最多 5 条，展开答案后由孩子或家长核对，再练词保存在当前浏览器。系统英语语音优先英式，实际音质随设备变化；这不是教材原声。详见 [英语应用说明](english/README.md)。
+
 ## 目录结构
 
 ```text
@@ -67,6 +72,7 @@ play/
 │   ├── visual.css
 │   ├── making.html     # 制作教学
 │   └── check.cjs
+├── english/           # 英语点读、纸笔听写、词库与检查
 ├── mine/              # 方块矿洞：页面、画面、规则及检查
 └── tank/
     ├── index.html      # 坦克游戏及地图选择
@@ -74,17 +80,17 @@ play/
     └── check.cjs
 ```
 
-每款小游戏的专属资源都放在自己的目录中，根目录负责提供统一入口。
+每个作品的专属资源都放在自己的目录中，根目录负责提供统一入口。
 
 ## 部署到 GitHub Pages
 
 当前仓库：[BaidyWorld/play](https://github.com/BaidyWorld/play)，远程地址为 `git@github.com:BaidyWorld/play.git`。
 
-1. 将整个项目目录的内容提交到准备发布的仓库分支，保留 `lab/`、`tank/`、`mine/` 和 `.nojekyll`。
+1. 将整个项目目录的内容提交到准备发布的仓库分支，保留 `lab/`、`tank/`、`mine/`、`english/` 和 `.nojekyll`。
 2. 在仓库 **Settings → Pages** 中选择 **Deploy from a branch**，指定该分支和 **/ (root)** 目录。
 3. 保存后，以 Pages 页面显示的部署结果和站点地址为准。
 
-使用默认域名时，部署后预计地址为 [https://baidyworld.github.io/play/](https://baidyworld.github.io/play/)。此处仅说明预期地址，未确认该站点已经上线。
+使用默认域名时，部署后预计地址为 [https://baidyworld.github.io/play/](https://baidyworld.github.io/play/)。英语练习的直接入口为 [小小英语本](https://baidyworld.github.io/play/english/)。
 
 所有站内导航和资源引用均为相对路径，兼容 `/play/` 等仓库子路径，无需改域名、配置后端或执行项目构建。城市地图对应 `tank/index.html?map=city`。
 
@@ -95,12 +101,13 @@ play/
 在根目录运行：
 
 ```sh
-node check.cjs                    # 两款游戏玩法 + 静态部署路径
+node check.cjs                    # 三款游戏、英语规则及静态部署路径
 node lab/check.cjs                # 解谜游戏
 node tank/check.cjs               # 坦克游戏
 node mine/core.test.cjs           # 矿洞规则与完整通关
 node mine/check.cjs               # 矿洞浏览器交互
-node check.cjs --deployment-only  # 仅检查入口、资源与仓库子路径
+node --test english/tests/*.test.mjs # 英语练习规则与词库
+node check.cjs --deployment-only  # 检查入口、英语纸笔流程、资源与仓库子路径
 ```
 
 检查覆盖桌面与手机尺寸下的游戏流程，并临时使用 `/repo-name/` 前缀验证大厅跳转、资源加载、城市地图参数、地图切换和返回链接。

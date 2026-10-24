@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#214f42">
+  <meta name="description" content="三年级上册英语词表，点击听读、查看音标，用纸笔默写并核对。">
+  <title>小小英语本 · 三年级上册</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到练习内容</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="单元导航">
+      <a class="brand" href="./" aria-label="小小英语本首页">
+        <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 5h18v23H7a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z" fill="currentColor"/><path d="M10 5v23M15 12h6M15 17h6" stroke="#fffdf7" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span>小小英语本<small>读得出，也写得对</small></span>
+      </a>
+      <div class="book-label"><span>我的课本</span><span class="edition">三年级上册</span></div>
+      <nav id="units" class="unit-nav" aria-label="选择学习单元"></nav>
+      <div class="sidebar-note">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m13 6 5 5M4 15l5 5" stroke="currentColor" stroke-width="1.6"/></svg>
+        <p>一支笔，一张纸。<br>每天认真记住一点点。</p>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-left"><a class="back-hall" href="../index.html">〈 返回大厅</a><span id="breadcrumb">我的课本 / Unit 1</span></div>
+        <span class="paper-reminder"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.6"/><path d="M10 12h5m-5 4h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>准备好纸和笔</span>
+      </header>
+      <main id="main" tabindex="-1">
+        <div id="app"></div>
+      </main>
+      <footer class="footer"><span>跟着课本学，用自己的笔记住。</span><span>音标采用英式标注 · 核对结果由你记录</span></footer>
+    </div>
+  </div>
+  <div class="notice-stack"><p id="storage-note" class="notice storage-notice" role="status" hidden></p><p id="speech-note" class="notice" role="status" hidden></p></div>
+  <div id="announcement" class="sr-only" aria-live="polite"></div>
+</body>
+</html>

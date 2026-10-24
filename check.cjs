@@ -10,18 +10,40 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
  const go=url=>load(()=>frame.src=url),doc=()=>frame.contentDocument;
  const checkLayout=()=>assert(doc().documentElement.scrollWidth<=frame.clientWidth,'horizontal overflow: '+frame.src);
  try{
-  await go(prefix);assert(doc().querySelectorAll('.card').length===3,'three games on homepage');checkLayout();
+  await go(prefix);assert(doc().querySelectorAll('.card').length===4,'three games and English practice on homepage');checkLayout();
   for(const link of doc().querySelectorAll('a'))assert(link.href.startsWith(prefix),'link escapes repository prefix');
+  await load(()=>doc().querySelector('a[href="english/index.html"]').click());
+  assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
+  assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
+  assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  assert(doc().querySelector('.ipa').textContent.includes('hæpi'),'English phonetics visible');
+  doc().querySelector('[data-action="conceal"]').click();
+  assert([...doc().querySelectorAll('.word-text')].every(e=>!e.textContent.trim()),'concealed list removes spelling');
+  doc().querySelector('[data-action="practice"]').click();
+  assert(!doc().querySelector('.answer-word')&&!doc().querySelector('[data-action="grade-right"]'),'paper practice hides answers and grading');checkLayout();
+  for(let i=0;i<5;i++){
+   doc().querySelector('[data-action="reveal"]').click();
+   assert(doc().querySelector('.answer-word').textContent===['happy','sad','angry','tired','boy'][i],'paper practice follows textbook sequence');
+   doc().querySelector(i===0?'[data-action="grade-wrong"]':'[data-action="grade-right"]').click();
+  }
+  assert(doc().querySelector('.summary-stats').textContent.includes('4'),'manual results summarized');
+  doc().querySelector('[data-action="retry"]').click();doc().querySelector('[data-action="reveal"]').click();doc().querySelector('[data-action="grade-right"]').click();
+  assert(doc().querySelector('[data-action="next"]'),'retry preserves next group');
+  doc().querySelector('[data-action="next"]').click();doc().querySelector('[data-action="reveal"]').click();
+  assert(doc().querySelector('.answer-word').textContent==='girl','retry continues original unit at sixth entry');
+  await load(()=>frame.contentWindow.location.reload());
+  assert(doc().querySelector('[data-action="flag"]').getAttribute('aria-pressed')==='true','English review flags persist on refresh');
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===4,'English returns to homepage');
   await load(()=>doc().querySelector('a[href="lab/index.html"]').click());
   assert(frame.contentWindow.location.pathname==='/repo-name/lab/index.html','lab navigation');assert(doc().querySelector('.next-target')?.dataset.place==='bench','lab JavaScript started');assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/lab/visual.css')&&sheet.cssRules.length>0),'lab stylesheet loaded');checkLayout();
   await load(()=>doc().querySelector('a[href="making.html"]').click());assert(doc().title,'making page loads');
   await load(()=>doc().querySelector('a[href="index.html"]').click());
-  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===3,'lab returns to homepage');
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===4,'lab returns to homepage');
   await load(()=>doc().querySelector('a[href="tank/index.html?map=city"]').click());assert(frame.contentWindow.eval('currentMap')==='city','city query survives prefix');assert(doc().querySelector('[data-map="city"]').getAttribute('aria-pressed')==='true','city selection visible');checkLayout();
   doc().getElementById('action').click();assert(frame.contentWindow.eval('mode')==='playing','tank script loaded and start works');assert(frame.contentWindow.eval('allies.length')===10,'ten allies loaded');
   doc().querySelector('[data-map="field"]').click();assert(frame.contentWindow.eval('currentMap')==='field','switch to original map');
   doc().querySelector('[data-map="city"]').click();assert(frame.contentWindow.eval('currentMap')==='city','switch back to city');
-  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===3,'tank returns to homepage');
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===4,'tank returns to homepage');
   await load(()=>doc().querySelector('a[href="mine/index.html"]').click());assert(doc().getElementById('menu').open,'mine menu loads');checkLayout();
   doc().getElementById('start').click();assert(frame.contentWindow.eval('playing'),'mine starts');
   frame.contentWindow.eval("state.tiles[3][state.x]='dirt'");
@@ -29,8 +51,8 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   frame.contentWindow.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown',{code:'ArrowDown'}));
   assert(frame.contentWindow.eval('state.y')===3,'mine movement before reload');
   await load(()=>frame.contentWindow.location.reload());assert(doc().getElementById('resume').hidden===false,'saved mine offers resume');doc().getElementById('resume').click();assert(frame.contentWindow.eval('state.y')===3,'mine restores position');
-  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===3,'mine returns to homepage');
-  document.body.innerHTML='<p>CHECK_PASS: repository prefix, homepage navigation, lab resources, teaching page, tank JavaScript, city query, both map selections, mine resources and persistent save, return links, responsive layout</p>';
+  await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===4,'mine returns to homepage');
+  document.body.innerHTML='<p>CHECK_PASS: repository prefix, homepage navigation, lab resources, teaching page, tank JavaScript, city query, both map selections, mine resources and persistent save, return links, English paper dictation, responsive layout</p>';
  }catch(error){document.body.innerHTML='<p>CHECK_FAIL: '+error.message+'</p>'}
 })();
 </script>`;
@@ -42,7 +64,7 @@ async function checkDeployment(){
   if(url.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
   const relative=decodeURIComponent(url.pathname.slice('/repo-name/'.length)),file=path.resolve(root,!relative||relative.endsWith('/')?relative+'index.html':relative);
   if(!url.pathname.startsWith('/repo-name/')||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){missing.push(url.pathname);res.writeHead(404);res.end();return;}
-  res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript'})[path.extname(file)]||'text/plain');fs.createReadStream(file).pipe(res);
+  res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.svg':'image/svg+xml'})[path.extname(file)]||'text/plain');fs.createReadStream(file).pipe(res);
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'arcade-deploy-check-'));
@@ -66,6 +88,7 @@ async function checkDeployment(){
   await run(process.execPath,[path.join(root,'tank/check.cjs')]);
   await run(process.execPath,[path.join(root,'mine/core.test.cjs')]);
   await run(process.execPath,[path.join(root,'mine/check.cjs')]);
+  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs')]);
  }
  await checkDeployment();
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -16,6 +16,28 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
   assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  const audioSource=()=>doc().getElementById('source-select');
+  assert(audioSource()?.value==='textbook','textbook original is the first default audio source');
+  assert(doc().getElementById('accent-select').disabled&&doc().getElementById('voice-select').disabled,'original recording retains its own accent and performers');
+  const NativeAudio=frame.contentWindow.Audio,recordings=[];
+  let failRecording=false;
+  frame.contentWindow.Audio=class {
+   constructor(src){this.src=src;recordings.push(this)}
+   play(){return failRecording?Promise.reject(Error('test audio unavailable')):Promise.resolve()}
+   pause(){this.paused=true}
+  };
+  const wordButtons=()=>doc().querySelectorAll('[data-action="speak"]');
+  wordButtons()[0].click();assert(recordings.at(-1).src.endsWith('/words/u1-1.mp3'),'word click selects its own two-reading recording');
+  const firstRecording=recordings.at(-1);wordButtons()[1].click();
+  assert(firstRecording.paused&&recordings.at(-1).src.endsWith('/words/u1-2.mp3'),'new word stops the previous original recording');
+  firstRecording.onended?.();assert(wordButtons()[1].classList.contains('is-speaking'),'old audio callbacks cannot reset a newer recording');
+  failRecording=true;wordButtons()[0].click();await Promise.resolve();
+  assert(!doc().getElementById('speech-note').hidden&&audioSource().value==='textbook','failed original playback reports an error and keeps the chosen source');
+  failRecording=false;frame.contentWindow.Audio=NativeAudio;
+  const nativeClip=new Audio(prefix+'english/audio/textbook/words/u1-1.mp3');nativeClip.preload='metadata';nativeClip.muted=true;
+  await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('textbook MP3 metadata timeout: state '+nativeClip.networkState+'/'+nativeClip.readyState+' '+nativeClip.currentSrc)),5000);nativeClip.onloadedmetadata=()=>{clearTimeout(timeout);resolve()};nativeClip.onerror=()=>{clearTimeout(timeout);reject(Error('textbook MP3 cannot decode'))};nativeClip.load()});
+  assert(nativeClip.duration>1&&nativeClip.duration<5,'published MP3 is a decodable short word clip');nativeClip.pause();nativeClip.removeAttribute('src');nativeClip.load();
+  audioSource().value='system';audioSource().dispatchEvent(new frame.contentWindow.Event('change',{bubbles:true}));
   doc().querySelector('[data-action="memory"]').click();
   assert(new Set([...doc().querySelectorAll('.memory-entry')].map(row=>row.dataset.id)).size===165,'memory map covers every photographed vocabulary entry');checkLayout();
   const laterStar=doc().querySelector('[data-group="animal-friends"] [data-action="flag"][data-id="u6-3"]');laterStar.focus({preventScroll:true});laterStar.click();
@@ -55,7 +77,11 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
    speech.dispatchEvent(new win.Event('voiceschanged'));
   };
   const change=(element,value)=>{element.value=value;element.dispatchEvent(new frame.contentWindow.Event('change',{bubbles:true}))};
-  testVoices=[usVoice];installSpeech();assert(accent().value==='en-US','automatic default uses available American voice');
+  installSpeech();change(audioSource(),'textbook');doc().querySelector('[data-unit="0"]').click();
+  const beforeFallback=spoken.length;doc().querySelector('[data-action="speak"]').click();
+  assert(spoken.length===beforeFallback+1&&spoken.at(-1).text==='China'&&!doc().getElementById('speech-note').hidden,'unrecorded proper noun explicitly uses device pronunciation');
+  doc().querySelector('[data-unit="1"]').click();change(audioSource(),'system');
+  testVoices=[usVoice];installSpeech();assert(audioSource().value==='system','audio source preference survives refresh');assert(accent().value==='en-US','automatic default uses available American voice');
   testVoices=[gbVoice,usVoice,usRole];installSpeech();assert(accent().value==='en-GB','late British voices regain automatic default');
   change(accent(),'en-US');
   assert(roles().options.length===3,'American role list excludes British voices');
@@ -122,7 +148,7 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(doc().querySelector('.answer-word').textContent==='girl','retry continues original unit at sixth entry');
   await load(()=>frame.contentWindow.location.reload());
   assert(doc().querySelector('[data-action="flag"]').getAttribute('aria-pressed')==='true','English review flags persist on refresh');
-  installSpeech();assert(accent().value==='en-US'&&roles().value==='test-us-alex','accent and voice role survive refresh');
+  installSpeech();assert(audioSource().value==='system','audio source preference survives refresh');assert(accent().value==='en-US'&&roles().value==='test-us-alex','accent and voice role survive refresh');
   await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===4,'English returns to homepage');
   await load(()=>doc().querySelector('a[href="lab/index.html"]').click());
   assert(frame.contentWindow.location.pathname==='/repo-name/lab/index.html','lab navigation');assert(doc().querySelector('.next-target')?.dataset.place==='bench','lab JavaScript started');assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/lab/visual.css')&&sheet.cssRules.length>0),'lab stylesheet loaded');checkLayout();
@@ -154,7 +180,7 @@ async function checkDeployment(){
   if(url.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
   const relative=decodeURIComponent(url.pathname.slice('/repo-name/'.length)),file=path.resolve(root,!relative||relative.endsWith('/')?relative+'index.html':relative);
   if(!url.pathname.startsWith('/repo-name/')||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){missing.push(url.pathname);res.writeHead(404);res.end();return;}
-  res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.svg':'image/svg+xml'})[path.extname(file)]||'text/plain');fs.createReadStream(file).pipe(res);
+  res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.svg':'image/svg+xml','.mp3':'audio/mpeg'})[path.extname(file)]||'text/plain');fs.createReadStream(file).pipe(res);
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'arcade-deploy-check-'));
@@ -178,7 +204,7 @@ async function checkDeployment(){
   await run(process.execPath,[path.join(root,'tank/check.cjs')]);
   await run(process.execPath,[path.join(root,'mine/core.test.cjs')]);
   await run(process.execPath,[path.join(root,'mine/check.cjs')]);
-  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs'),path.join(root,'english/tests/phonics.test.mjs'),path.join(root,'english/tests/memory.test.mjs')]);
+  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs'),path.join(root,'english/tests/phonics.test.mjs'),path.join(root,'english/tests/memory.test.mjs'),path.join(root,'english/tests/textbook-audio.test.mjs')]);
  }
  await checkDeployment();
 })().catch(error=>{console.error(error);process.exitCode=1;});

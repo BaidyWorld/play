@@ -114,4 +114,4 @@ node check.cjs --deployment-only  # 检查入口、英语纸笔流程、资源�
 
 ## 许可证
 
-本项目采用 **Apache License 2.0**，具体条款以仓库中的 [LICENSE](LICENSE) 为准。
+项目代码采用 **Apache License 2.0**，具体条款以仓库中的 [LICENSE](LICENSE) 为准。教材音频由用户提供，其权利说明见 [教材音频目录](english/audio/textbook/README.md)。

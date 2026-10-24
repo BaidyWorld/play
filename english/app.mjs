@@ -1,3 +1,4 @@
+import {textbookClips} from './textbook-audio.mjs';
 import {memoryGroups} from './memory.mjs';
 import {splitPhonics} from './phonics.mjs';
 import {entries, units} from './vocabulary.mjs';
@@ -30,6 +31,7 @@ const byId = new Map(entries.map(e=>[e.id,e]));
 const validIds = new Set(byId.keys());
 const storageKey = 'english-notebook-progress-v1';
 const voiceStorageKey = 'english-notebook-voice-v1';
+const sourceStorageKey = 'english-notebook-audio-source-v1';
 const root = document.querySelector('#app');
 let progress = {again:[],counts:{},last:[]};
 let unitId = 1, filter = 'all', concealed = false, mode = 'study';
@@ -37,7 +39,10 @@ let round = null, sourceIds = [], groupOffset = 0;
 let memoryQuery = '', practiceContext = '', practiceReturnMode = 'study';
 const entryByWord = new Map(entries.map(entry=>[entry.word,entry]));
 let synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
-let currentSpeech = null, speechSerial = 0;
+let currentSpeech = null, currentAudio = null, speechSerial = 0;
+let audioSource = 'textbook';
+try { if (localStorage.getItem(sourceStorageKey)==='system') audioSource='system'; }
+catch { storageWarning(); }
 let voices = [];
 let voiceSettings = {accent:'en-GB',voiceId:''}, voicePreferenceChosen = false;
 try { progress = parseProgress(localStorage.getItem(storageKey), validIds); }
@@ -64,6 +69,7 @@ function speechNotice(text) {
   element.hidden = !text;
 }
 function voiceLabel() {
+  if (audioSource==='textbook') return '教材原声 · 双读';
   if (!synth) return '此浏览器不支持朗读';
   const accent = voiceSettings.accent === 'en-US' ? '美式' : '英式';
   return chooseVoice(voices, voiceSettings.accent, voiceSettings.voiceId) ? `${accent}发音` : `${accent}语音待就绪`;
@@ -79,15 +85,21 @@ function updateVoiceStatus() {
   const available = voicesForAccent(voices,voiceSettings.accent);
   const accentSelect = document.querySelector('#accent-select');
   const voiceSelect = document.querySelector('#voice-select');
-  accentSelect.value = voiceSettings.accent;
-  accentSelect.disabled = !synth;
+  document.querySelector('#source-select').value=audioSource;
+  accentSelect.innerHTML=audioSource==='textbook'?'<option value="original">随教材录音</option>':'<option value="en-GB">英式英语</option><option value="en-US">美式英语</option>';
+  accentSelect.value = audioSource==='textbook'?'original':voiceSettings.accent;
+  accentSelect.disabled = audioSource==='textbook'||!synth;
   voiceSelect.innerHTML = available.length ? `<option value="">自动选择（${esc(available[0].name)}）</option>${available.map(voice=>`<option value="${esc(voice.voiceURI || voice.name)}">${esc(voice.name)}</option>`).join('')}` : '<option value="">暂无此口音的角色</option>';
   const preferred = available.some(voice=>(voice.voiceURI || voice.name) === voiceSettings.voiceId);
-  voiceSelect.value = preferred ? voiceSettings.voiceId : '';
-  voiceSelect.disabled = !available.length;
-  document.querySelector('#voice-preview').disabled = !synth;
+  if (audioSource==='textbook') voiceSelect.innerHTML='<option value="">教材录音原角色</option>';
+  voiceSelect.value = audioSource==='textbook'?'':preferred?voiceSettings.voiceId:'';
+  voiceSelect.disabled = audioSource==='textbook'||!available.length;
+  const preview=document.querySelector('#voice-preview');
+  preview.disabled=audioSource==='textbook'?!('Audio' in window):!synth;
+  preview.textContent=audioSource==='textbook'?'试听原声':'试听角色';
   const help = document.querySelector('#voice-help');
-  if (!synth) help.textContent = '当前浏览器不支持朗读，请换用 Safari、Chrome 或 Edge。词表与纸笔练习仍可使用。';
+  if (audioSource==='textbook') help.textContent='保留教材每条读两遍的原声，口音和角色随录音；专有名词原声暂缺，点读时会提示改用设备朗读。';
+  else if (!synth) help.textContent = '当前浏览器不支持朗读，请换用 Safari、Chrome 或 Edge。词表与纸笔练习仍可使用。';
   else if (!available.length) help.textContent = `当前设备尚无${voiceSettings.accent==='en-US'?'美式':'英式'}英语角色，可稍后点试听重试，或在设备语音设置中添加对应英语语音。`;
   else if (voiceSettings.voiceId && !preferred) help.textContent = `上次的角色暂不可用，当前使用 ${available[0].name}。下方音标统一为英式标注。`;
   else help.textContent = '常用音色已排在前面，可点击试听；角色由当前设备提供，音标统一为英式标注。';
@@ -102,11 +114,39 @@ function stopSpeech() {
   speechSerial += 1;
   if (synth) { try { synth.cancel(); } catch { /* Some embedded browsers expose an inactive speech service. */ } }
   currentSpeech = null;
+  if (currentAudio) { currentAudio.pause(); currentAudio=null; }
   document.querySelectorAll('.is-speaking').forEach(e=>e.classList.remove('is-speaking'));
 }
-function speak(text, button) {
+function playRecording(clip, button) {
+  const token=speechSerial;
+  const audio=new Audio(clip.src);
+  currentAudio=audio;
+  button.classList.add('is-speaking');
+  audio.onended=()=>{
+    if (token!==speechSerial) return;
+    button.classList.remove('is-speaking');
+    currentAudio=null;
+  };
+  const fail=()=>{
+    if (token!==speechSerial) return;
+    audio.pause();
+    button.classList.remove('is-speaking');
+    currentAudio=null;
+    speechNotice('教材原声暂时无法播放，请检查网络后重试，或切换为设备朗读。');
+  };
+  audio.onerror=fail;
+  try { const playing=audio.play(); if (playing?.catch) playing.catch(fail); }
+  catch { fail(); }
+}
+function speak(text, button, entryId) {
   stopSpeech();
   speechNotice('');
+  if (audioSource==='textbook' && textbookClips[entryId]) {
+    if ('Audio' in window) playRecording(textbookClips[entryId],button);
+    else speechNotice('当前浏览器无法播放教材原声，请换用浏览器或设备朗读。');
+    return;
+  }
+  if (audioSource==='textbook') speechNotice('这条词汇暂未提供教材原声，本次使用设备朗读。');
   if (!synth || !('SpeechSynthesisUtterance' in window)) {
     speechNotice('当前浏览器不支持朗读。请用 Safari、Chrome 或 Edge 打开；仍可展开答案进行读写练习。');
     return;
@@ -142,6 +182,14 @@ function speak(text, button) {
     speechNotice('这次没有播放成功，请检查设备音量，或换用浏览器再试。');
   }
 }
+document.querySelector('#source-select').addEventListener('change',event=>{
+  stopSpeech(); speechNotice('');
+  audioSource=event.target.value==='system'?'system':'textbook';
+  try { localStorage.setItem(sourceStorageKey,audioSource); }
+  catch { storageWarning(); }
+  updateVoiceStatus();
+  announce(audioSource==='textbook'?'已切换为教材原声，每条读两遍。':'已切换为设备朗读。');
+});
 document.querySelector('#accent-select').addEventListener('change',event=>{
   stopSpeech(); speechNotice('');
   voiceSettings = {accent:event.target.value,voiceId:''};
@@ -154,7 +202,12 @@ document.querySelector('#voice-select').addEventListener('change',event=>{
   saveVoiceSettings(); updateVoiceStatus();
   announce('朗读角色已更新。');
 });
-document.querySelector('#voice-preview').addEventListener('click',event=>speak("Hello! Let's learn English.",event.currentTarget));
+document.querySelector('#voice-preview').addEventListener('click',event=>{
+  if (audioSource==='textbook') {
+    const sample=entries.find(entry=>entry.unit===unitId&&textbookClips[entry.id])||entries.find(entry=>textbookClips[entry.id]);
+    speak(sample.speak,event.currentTarget,sample.id);
+  } else speak("Hello! Let's learn English.",event.currentTarget);
+});
 if (synth) synth.addEventListener('voiceschanged',updateVoiceStatus);
 window.addEventListener('pagehide',stopSpeech);
 
@@ -193,7 +246,7 @@ function studyView() {
   const reviewCount = all.filter(e=>progress.again.includes(e.id)).length;
   return `<section class="hero" aria-labelledby="welcome-title"><div class="hero-copy"><div class="hero-kicker">三年级上册 · 纸笔记忆小练习</div><h1 id="welcome-title">听一听，<br class="mobile-break">写一写。</h1><p>点击单词，跟着读一遍。<br>再拿起笔，把记住的写下来。</p></div>${notebookArt}</section>
   <section aria-labelledby="unit-title"><div class="section-top"><div class="section-heading"><h2 id="unit-title">${unit.id?`Unit ${unit.id}`:'专有名词'}</h2><span class="count-tag">${all.length} 条词汇</span></div>${modeSwitch()}</div>
-  <div class="toolbar"><div class="filter-buttons"><button class="filter-button" data-action="all" aria-pressed="${filter==='all'}">全部词汇</button><button class="filter-button" data-action="again" aria-pressed="${filter==='again'}">${icon('star',14)}再练词<span class="filter-count">${reviewCount}</span></button></div><div class="toolbar-right"><button class="hide-button" data-action="conceal" aria-pressed="${concealed}">${icon(concealed?'eye':'hide',15)}${concealed?'显示英文':'遮住英文'}</button><span class="voice-status"><span class="voice-dot${!synth?' unavailable':''}"></span><span data-voice-status>${voiceLabel()}</span></span></div></div>
+  <div class="toolbar"><div class="filter-buttons"><button class="filter-button" data-action="all" aria-pressed="${filter==='all'}">全部词汇</button><button class="filter-button" data-action="again" aria-pressed="${filter==='again'}">${icon('star',14)}再练词<span class="filter-count">${reviewCount}</span></button></div><div class="toolbar-right"><button class="hide-button" data-action="conceal" aria-pressed="${concealed}">${icon(concealed?'eye':'hide',15)}${concealed?'显示英文':'遮住英文'}</button><span class="voice-status"><span class="voice-dot${audioSource==='system'&&!synth?' unavailable':''}"></span><span data-voice-status>${voiceLabel()}</span></span></div></div>
   ${phonicsLegend()}
   ${shown.length?`<div class="word-grid">${shown.map(entry=>wordCard(entry,all.indexOf(entry)+1)).join('')}</div>`:`<div class="empty-state">${icon('star',36)}<h3>这一单元还没有再练词</h3><p>遇到不熟的单词，点一下卡片右上角的星星，<br>下次就能在这里集中练习。</p><button class="secondary-button" data-action="all">回到全部词汇</button></div>`}
   <p class="study-tip">${icon('info',14)}<span>点击英文或小喇叭听发音；点星星收进再练词。短语、句子也可以跟读。</span></p>
@@ -317,7 +370,7 @@ root.addEventListener('click',event=>{
   const button = event.target.closest('button[data-action]');
   if (!button) return;
   const action = button.dataset.action;
-  if (action==='speak') { const entry=byId.get(button.dataset.id); if (entry) speak(entry.speak,button); return; }
+  if (action==='speak') { const entry=byId.get(button.dataset.id); if (entry) speak(entry.speak,button,entry.id); return; }
   if (action==='flag') {
     const id = button.dataset.id;
     const flagged = progress.again.includes(id);

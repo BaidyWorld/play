@@ -50,27 +50,10 @@ try {
   }
 } catch { storageWarning(); }
 document.body.classList.toggle('phonics-off',!phonicsEnabled);
-const preloadedClips = new Set();
-function preloadTextbook(ids) {
-  if (audioSource!=='textbook') return;
-  for (const id of ids) {
-    const clip=textbookClips[id];
-    if (!clip||preloadedClips.has(id)) continue;
-    preloadedClips.add(id);
-    // Warm the HTTP cache without delaying the first click or retaining decoded audio.
-    fetch(clip.src,{cache:'force-cache'}).then(response=>{
-      if (!response.ok) throw Error('Audio unavailable');
-      return response.arrayBuffer();
-    }).catch(()=>preloadedClips.delete(id));
-  }
-}
-function preloadCurrentAudio() {
-  if (mode==='study') preloadTextbook(currentEntries().map(entry=>entry.id));
-  else if (mode==='practice') preloadTextbook(round?.ids||[]);
-}
 let round = null, sourceIds = [], groupOffset = 0;
 const heardIds = new Set();
 let readingQueue = null;
+const groupReadingModes = new Map();
 let fittedWordGrid = null, fittedWordWidth = 0;
 let memoryQuery = '', practiceContext = '', practiceReturnMode = 'study';
 const entryByWord = new Map(entries.map(entry=>[entry.word,entry]));
@@ -147,6 +130,7 @@ function saveVoiceSettings() {
   catch { storageWarning(); }
 }
 function stopSpeech(keepReading=false) {
+  clearTimeout(readingQueue?.timer);
   speechSerial += 1;
   if (synth) { try { synth.cancel(); } catch { /* Some embedded browsers expose an inactive speech service. */ } }
   currentSpeech = null;
@@ -251,11 +235,22 @@ function readQueuedEntry() {
   const button=root.querySelector(queue.groupId?`[data-group="${queue.groupId}"] .memory-word-button[data-id="${entry.id}"]`:`.word-button[data-id="${entry.id}"]`);
   if (!button) { stopSpeech(); return; }
   if (!queue.groupId) button.closest('.word-card').scrollIntoView({block:'center'});
-  speak(entry.speak,button,entry.id,()=>{
-    if (readingQueue!==queue||queue.paused) return;
-    queue.index++;
-    readQueuedEntry();
-  });
+  const examplePhase=queue.phase==='example';
+  const speakingButton=examplePhase?button.closest('.memory-entry').querySelector('[data-action="speak-example"]')||button:button;
+  let completed=false;
+  speak(examplePhase?examples[entry.id][0]:entry.speak,speakingButton,entry.id,()=>{
+    if (completed||readingQueue!==queue||queue.paused) return;
+    completed=true;
+    if (!queue.withExamples) { queue.index++; readQueuedEntry(); return; }
+    queue.phase=examplePhase?'word':'example';
+    if (examplePhase) queue.index++;
+    const token=speechSerial;
+    queue.timer=setTimeout(()=>{
+      if (readingQueue!==queue||queue.paused||token!==speechSerial) return;
+      queue.timer=null;
+      readQueuedEntry();
+    },examplePhase?2000:1500);
+  },examplePhase);
 }
 function toggleAutoReading(groupId='') {
   if (readingQueue&&readingQueue.groupId!==groupId) stopSpeech();
@@ -268,8 +263,7 @@ function toggleAutoReading(groupId='') {
   if (!readingQueue) {
     const ids=groupId?[...root.querySelectorAll(`[data-group="${groupId}"] .memory-entry:not([hidden])`)].map(row=>row.dataset.id):currentEntries().map(entry=>entry.id);
     if (!ids.length) return;
-    readingQueue={ids,index:0,paused:false,groupId};
-    preloadTextbook(ids);
+    readingQueue={ids,index:0,paused:false,groupId,phase:'word',withExamples:groupReadingModes.get(groupId)==='examples'};
   }
   readingQueue.paused=false;
   readQueuedEntry();
@@ -297,7 +291,6 @@ document.querySelector('#source-select').addEventListener('change',event=>{
   try { localStorage.setItem(sourceStorageKey,audioSource); }
   catch { storageWarning(); }
   updateVoiceStatus();
-  preloadCurrentAudio();
   announce(audioSource==='textbook'?'已切换为教材原声，每条读两遍。':'已切换为设备朗读。');
 });
 document.querySelector('#accent-select').addEventListener('change',event=>{
@@ -397,8 +390,8 @@ function memoryView() {
   return `<section class="memory-hero"><div><div class="hero-kicker">全册词汇 · 串起来记</div><h1 id="memory-title" tabindex="-1">一串词，一起记。</h1><p>读一串，在纸上写一串，再遮住英文试着回忆。<br>记不住的点星星，稍后再练。</p></div><span class="memory-total">${entries.length}<small>条课本词汇</small></span></section>
     <div class="section-top memory-toolbar"><div class="section-heading"><h2>串词速记</h2></div><button class="hide-button" data-action="conceal" aria-pressed="${concealed}">${icon(concealed?'eye':'hide',15)}${concealed?'显示英文':'遮住英文'}</button></div>
     <div class="memory-tools"><label for="memory-search">找一个词<input id="memory-search" type="search" placeholder="输入英文或中文" value="${esc(memoryQuery)}" autocomplete="off"></label><nav class="memory-jumps" aria-label="速记分组">${Object.entries(memoryKinds).map(([kind,label])=>`<a href="#memory-${kind}">${label}</a>`).join('')}</nav></div>
-    <p class="memory-guide">每次先选一小组：点读 → 看提示串起来 → 遮词回忆 → 纸笔听写。同一个词也会出现在不同的联想中。短例句为练习示例，点击使用设备朗读。</p>
-    ${Object.entries(memoryKinds).map(([kind,label])=>`<section class="memory-section" id="memory-${kind}" aria-labelledby="memory-heading-${kind}"><div class="memory-section-heading"><h2 id="memory-heading-${kind}">${label}</h2><span>${memoryGroups.filter(group=>group.kind===kind).length} 组</span></div><div class="memory-grid">${memoryGroups.filter(group=>group.kind===kind).map(group=>`<article class="memory-group" data-group="${group.id}"><div class="memory-group-header"><h3>${esc(group.title)}</h3><div class="memory-group-actions"><span>${group.words.length} 条</span><button class="group-read-button" data-action="read-group" data-group="${group.id}" aria-pressed="false">朗读单词</button></div></div>${concealed?'':`<p class="memory-tip">${esc(group.tip)}</p>`}<div class="memory-entries">${group.words.map(word=>memoryEntry(entryByWord.get(word))).join('')}</div><p class="memory-recall">${esc(group.recall)}</p><button class="secondary-button" data-action="practice-group" data-group="${group.id}">${icon('pencil',15)}练这一组</button></article>`).join('')}</div></section>`).join('')}
+    <p class="memory-guide">每次先选一小组：点读 → 看提示串起来 → 遮词回忆 → 纸笔听写。同一个词也会出现在不同的联想中。短例句为练习示例，点击使用设备朗读。“单词＋例句”会在单词后停 1.5 秒、例句后停 2 秒，留时间跟读。</p>
+    ${Object.entries(memoryKinds).map(([kind,label])=>`<section class="memory-section" id="memory-${kind}" aria-labelledby="memory-heading-${kind}"><div class="memory-section-heading"><h2 id="memory-heading-${kind}">${label}</h2><span>${memoryGroups.filter(group=>group.kind===kind).length} 组</span></div><div class="memory-grid">${memoryGroups.filter(group=>group.kind===kind).map(group=>`<article class="memory-group" data-group="${group.id}"><div class="memory-group-header"><h3>${esc(group.title)}</h3><div class="memory-group-actions"><span>${group.words.length} 条</span><button class="group-read-button" data-action="read-group" data-group="${group.id}" aria-pressed="false">朗读单词</button></div></div><label class="memory-reading-options">朗读内容<select data-reading-mode data-group="${group.id}" aria-label="${esc(group.title)}的朗读内容"><option value="words"${groupReadingModes.get(group.id)!=='examples'?' selected':''}>只读单词</option><option value="examples"${groupReadingModes.get(group.id)==='examples'?' selected':''}>单词＋例句</option></select></label>${concealed?'':`<p class="memory-tip">${esc(group.tip)}</p>`}<div class="memory-entries">${group.words.map(word=>memoryEntry(entryByWord.get(word))).join('')}</div><p class="memory-recall">${esc(group.recall)}</p><button class="secondary-button" data-action="practice-group" data-group="${group.id}">${icon('pencil',15)}练这一组</button></article>`).join('')}</div></section>`).join('')}
     <div id="memory-empty" class="empty-state" hidden><h3>没有找到这个词</h3><p>换一个词，或清空搜索看看全部分组。</p></div>`;
 }
 function memoryEntry(entry) {
@@ -424,6 +417,12 @@ function filterMemory() {
   const empty=root.querySelector('#memory-empty');
   if (empty) empty.hidden=visible>0;
 }
+root.addEventListener('change',event=>{
+  const select=event.target.closest('[data-reading-mode]');
+  if (!select) return;
+  stopSpeech();
+  groupReadingModes.set(select.dataset.group,select.value==='examples'?'examples':'words');
+});
 root.addEventListener('input',event=>{
   if (event.target.id!=='memory-search') return;
   memoryQuery=event.target.value;
@@ -476,7 +475,6 @@ function render(focusSelector) {
   if (mode==='memory') filterMemory();
   fitWordCards();
   updateVoiceStatus();
-  preloadCurrentAudio();
   try { localStorage.setItem(viewStorageKey,JSON.stringify({unitId,mode:mode==='practice'?practiceReturnMode:mode})); }
   catch { storageWarning(); }
   const target = focusSelector || restore;

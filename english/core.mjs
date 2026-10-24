@@ -10,8 +10,24 @@ export function markAnswer(round, correct) {
   if (!round.revealed || round.index >= round.ids.length || typeof correct !== 'boolean') {
     throw new Error('请先展开答案，再核对纸上的拼写。');
   }
-  return {...round, index: round.index + 1, revealed: false,
-    results: [...round.results, {id: round.ids[round.index], correct}]};
+  const currentId = round.ids[round.index];
+  const results = round.ids.flatMap(id => {
+    const result = id === currentId ? {id, correct} : round.results.find(item => item.id === id);
+    return result ? [result] : [];
+  });
+  let index = round.ids.length;
+  for (let step = 1; step <= round.ids.length; step++) {
+    const candidate = (round.index + step) % round.ids.length;
+    if (!results.some(item => item.id === round.ids[candidate])) { index = candidate; break; }
+  }
+  return {...round, index, revealed: false, results};
+}
+
+export function moveQuestion(round, direction) {
+  if (direction !== -1 && direction !== 1) return round;
+  const index = round.index + direction;
+  if (index < 0 || index > round.ids.length || (index === round.ids.length && round.results.length < round.ids.length)) return round;
+  return {...round, index, revealed: round.results.some(item => item.id === round.ids[index])};
 }
 
 export function parseProgress(raw, validIds) {
@@ -40,16 +56,24 @@ export function applyResults(progress, results) {
   return {again: [...again], counts, last: results.slice(-5)};
 }
 
+const familiarVoices = ['aaron', 'eddy', 'google us english', 'daniel', 'samantha', 'alex', 'george', 'hazel', 'susan', 'david', 'mark', 'zira'];
+function voicePriority(voice) {
+  const name = voice.name.toLowerCase().replace(/^microsoft\s+/, '');
+  const index = familiarVoices.findIndex(candidate => name === candidate || name.startsWith(candidate + ' ') || name.startsWith(candidate + '('));
+  return index < 0 ? familiarVoices.length : index;
+}
+const compareVoices = (a, b) => voicePriority(a) - voicePriority(b);
+
 export function voicesForAccent(voices, accent) {
   const language = accent.toLowerCase().replaceAll('_', '-');
   return voices.filter(voice => {
     const candidate = voice.lang.toLowerCase().replaceAll('_', '-');
     return candidate === language || candidate.startsWith(language + '-');
-  });
+  }).sort(compareVoices);
 }
 
 export function chooseVoice(voices, accent, voiceId = '') {
-  const candidates = accent ? voicesForAccent(voices, accent) : voices.filter(v => /^en(?:[-_]|$)/i.test(v.lang));
+  const candidates = accent ? voicesForAccent(voices, accent) : voices.filter(v => /^en(?:[-_]|$)/i.test(v.lang)).sort(compareVoices);
   if (voiceId) {
     const selected = candidates.find(v => (v.voiceURI || v.name) === voiceId);
     if (selected) return selected;

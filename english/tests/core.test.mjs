@@ -76,3 +76,51 @@ test('saved voice preferences reject malformed data and unsupported accents', ()
   assert.deepEqual(core.parseVoiceSettings('{"accent":"en-US","voiceId":"us-2"}'),{accent:'en-US',voiceId:'us-2'});
   assert.deepEqual(core.parseVoiceSettings('{"accent":"en-US","voiceId":2}'),{accent:'en-US',voiceId:''});
 });
+
+
+test('familiar voices lead the accent list and automatic playback without replacing a saved role', () => {
+  const voices = [
+    {name:'Zarvox',lang:'en-US',voiceURI:'robot'},
+    {name:'Samantha',lang:'en-US',voiceURI:'samantha'},
+    {name:'Google US English',lang:'en-US',voiceURI:'google'},
+    {name:'Eddy (英语（美国）)',lang:'en_US',voiceURI:'eddy'},
+    {name:'Aaron (Enhanced)',lang:'en-US',voiceURI:'aaron'},
+    {name:'Bells',lang:'en-US',voiceURI:'bells'},
+    {name:'Daniel',lang:'en-GB',voiceURI:'daniel'},
+    {name:'Microsoft Hazel Desktop - English (Great Britain)',lang:'en-GB',voiceURI:'hazel'},
+    {name:'Grandpa',lang:'en-GB',voiceURI:'grandpa'},
+  ];
+  const original = [...voices];
+  assert.deepEqual(core.voicesForAccent(voices,'en-US').map(v=>v.voiceURI),
+    ['aaron','eddy','google','samantha','robot','bells']);
+  assert.deepEqual(core.voicesForAccent([voices[8],voices[7],voices[6]],'en-GB').map(v=>v.voiceURI),
+    ['daniel','hazel','grandpa']);
+  assert.equal(core.chooseVoice(voices,'en-US').voiceURI,'aaron');
+  assert.equal(core.chooseVoice(voices,'en-US','robot').voiceURI,'robot');
+  assert.equal(core.chooseVoice(voices).voiceURI,'daniel');
+  assert.deepEqual(voices, original);
+});
+
+
+test('question navigation keeps answers and grades attached to the right item', () => {
+  let round = core.startRound(['a','b','c']);
+  assert.equal(core.moveQuestion(round,-1),round);
+  round = core.moveQuestion(core.revealAnswer(round),1);
+  assert.equal(round.index,1);
+  assert.equal(round.revealed,false);
+  round = core.markAnswer(core.revealAnswer(round),true);
+  assert.equal(round.index,2);
+  assert.deepEqual(round.results,[{id:'b',correct:true}]);
+  round = core.markAnswer(core.revealAnswer(round),false);
+  assert.equal(round.index,0,'skipped questions must be graded before completing the group');
+  round = core.moveQuestion(round,1);
+  assert.equal(round.revealed,true,'a graded answer remains visible when revisiting');
+  round = core.markAnswer(round,false);
+  assert.deepEqual(round.results,[{id:'b',correct:false},{id:'c',correct:false}]);
+  assert.equal(round.index,0);
+  round = core.markAnswer(core.revealAnswer(round),true);
+  assert.equal(round.index,3);
+  assert.deepEqual(round.results,[{id:'a',correct:true},{id:'b',correct:false},{id:'c',correct:false}]);
+  assert.equal(core.moveQuestion(round,-1).index,2);
+  assert.equal(core.moveQuestion(round,1),round);
+});

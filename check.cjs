@@ -16,6 +16,28 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
   assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  doc().querySelector('[data-action="memory"]').click();
+  assert(new Set([...doc().querySelectorAll('.memory-entry')].map(row=>row.dataset.id)).size===165,'memory map covers every photographed vocabulary entry');checkLayout();
+  const laterStar=doc().querySelector('[data-group="animal-friends"] [data-action="flag"][data-id="u6-3"]');laterStar.focus({preventScroll:true});laterStar.click();
+  assert(doc().activeElement.closest('.memory-group')?.dataset.group==='animal-friends','repeated vocabulary keeps focus in the same memory group');
+  doc().querySelector('[data-action="conceal"]').click();
+  assert(!doc().querySelector('.memory-ipa,.memory-tip')&&[...doc().querySelectorAll('.memory-word-text')].every(word=>!word.textContent.trim()),'memory recall removes spelling, phonetics and spelling hints');
+  doc().querySelector('[data-action="conceal"]').click();
+  const memorySearch=doc().getElementById('memory-search');memorySearch.value='rain';memorySearch.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+  assert([...doc().querySelectorAll('.memory-entry')].filter(row=>!row.hidden).every(row=>row.querySelector('.memory-word-text').textContent.includes('rain')),'memory search filters the real entries');
+  memorySearch.value='nothing-matches-123';memorySearch.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));assert(!doc().getElementById('memory-empty').hidden,'memory search explains no results');
+  memorySearch.value='';memorySearch.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+  const memoryGroupTitle=doc().querySelector('.memory-group h3').textContent;
+  const memoryFirstWord=doc().querySelector('.memory-group .memory-entry').dataset.id;
+  doc().querySelector('[data-action="practice-group"]').click();
+  assert(doc().querySelector('.practice-title p').textContent.includes(memoryGroupTitle),'group dictation names its cross-unit source');
+  doc().querySelector('[data-action="reveal"]').click();
+  assert(doc().querySelector('[data-action="speak"]').dataset.id===memoryFirstWord,'group practice uses that group vocabulary');
+  doc().querySelector('[data-action="memory"]').click();assert(doc().querySelector('.memory-group'),'group practice returns to memory map');
+  doc().querySelector('[data-action="study"]').click();
+  doc().querySelector('[data-unit="2"]').click();doc().querySelector('[data-action="practice"]').click();
+  assert(doc().querySelector('.practice-listening .prompt-label').getBoundingClientRect().top>=doc().querySelector('.practice-listening').getBoundingClientRect().top,'long mobile prompts do not overflow above the scrollable listening pane');
+  doc().querySelector('[data-unit="1"]').click();
   assert(doc().querySelector('.ipa').textContent.includes('hæpi'),'English phonetics visible');
   assert(doc().querySelector('.word-card .ph-vowel')?.textContent==='a','phonics colors the vowel in happy');
   const vowelColor=frame.contentWindow.getComputedStyle(doc().querySelector('.word-card .ph-vowel')).color;
@@ -37,6 +59,15 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   testVoices=[gbVoice,usVoice,usRole];installSpeech();assert(accent().value==='en-GB','late British voices regain automatic default');
   change(accent(),'en-US');
   assert(roles().options.length===3,'American role list excludes British voices');
+  const familiar=[
+   {voiceURI:'test-us-google',name:'Google US English',lang:'en-US'},
+   {voiceURI:'test-us-eddy',name:'Eddy (English (United States))',lang:'en-US'},
+   {voiceURI:'test-us-aaron',name:'Aaron',lang:'en-US'},
+  ];
+  testVoices=[{voiceURI:'test-robot',name:'Zarvox',lang:'en-US'},gbVoice,usRole,usVoice,...familiar];installSpeech();
+  assert([...roles().options].slice(1,4).map(option=>option.value).join(',')==='test-us-aaron,test-us-eddy,test-us-google','familiar voices lead the actual dropdown');
+  doc().getElementById('voice-preview').click();assert(spoken.at(-1).voice===familiar[2],'automatic playback matches the first recommended voice');
+  testVoices=[gbVoice,usVoice,usRole];installSpeech();
   change(roles(),'test-us-alex');doc().getElementById('voice-preview').click();
   assert(spoken.at(-1).voice===usRole&&spoken.at(-1).lang==='en-US','preview uses selected American role');
   doc().querySelector('[data-action="speak"]').click();
@@ -55,6 +86,28 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(!doc().querySelector('.word-card .ph-vowel,.word-card .ph-group'),'concealed list removes colored answer hints');
   doc().querySelector('[data-action="practice"]').click();
   assert(!doc().querySelector('.answer-word')&&!doc().querySelector('[data-action="grade-right"]'),'paper practice hides answers and grading');checkLayout();
+  const key=(value,options={})=>frame.contentWindow.document.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown',{key:value,bubbles:true,cancelable:true,...options}));
+  const question=()=>doc().querySelector('.practice-card-top').textContent;
+  const cardHeight=doc().querySelector('.practice-card').getBoundingClientRect().height;
+  const navTop=doc().querySelector('.question-navigation')?.getBoundingClientRect().top;
+  key('Enter');assert(doc().querySelector('.answer-word')?.textContent==='happy','Enter reveals before grading');
+  assert(doc().querySelector('.practice-card').getBoundingClientRect().height===cardHeight,'revealing the answer does not resize the card');
+  assert(doc().querySelector('.question-navigation').getBoundingClientRect().top===navTop,'answer reveal does not move navigation');
+  const spokenBeforeReplay=spoken.length;key(' ');assert(spoken.length===spokenBeforeReplay+1&&spoken.at(-1).text==='happy','Space replays the current word');
+  key('Enter',{repeat:true});assert(question().includes('1 / 5'),'held Enter does not grade repeatedly');
+  key('ArrowRight');assert(question().includes('2 / 5')&&!doc().querySelector('.answer-word'),'Right moves to a hidden next question');
+  const selectKey=new frame.contentWindow.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true});accent().dispatchEvent(selectKey);
+  assert(question().includes('2 / 5')&&!selectKey.defaultPrevented,'voice dropdown keeps its native keyboard behavior');
+  key('ArrowLeft');assert(question().includes('1 / 5'),'Left moves to the previous question');
+  key('Enter');key('Enter');assert(question().includes('2 / 5'),'Enter grades a revealed answer and advances');
+  key('ArrowLeft');assert(doc().querySelector('.answer-word')?.textContent==='happy','revisiting a graded question shows its answer');
+  doc().getElementById('grade-wrong').click();
+  assert(JSON.parse(frame.contentWindow.localStorage.getItem('english-notebook-progress-v1')).counts['u1-1']===1,'changing a grade does not count the same attempt twice');
+  doc().querySelector('[data-action="study"]').click();doc().querySelector('[data-action="practice"]').click();
+  for(let step=0;step<5;step++)key('ArrowRight');
+  assert(question().includes('5 / 5'),'Right stops at the last ungraded question');
+  key('Enter');key('Enter');assert(question().includes('1 / 5')&&!doc().querySelector('.summary-body'),'skipped questions are not silently marked complete');
+  doc().querySelector('[data-action="study"]').click();doc().querySelector('[data-action="practice"]').click();
   for(let i=0;i<5;i++){
    doc().querySelector('[data-action="reveal"]').click();
    assert(doc().querySelector('.answer-word').textContent===['happy','sad','angry','tired','boy'][i],'paper practice follows textbook sequence');
@@ -125,7 +178,7 @@ async function checkDeployment(){
   await run(process.execPath,[path.join(root,'tank/check.cjs')]);
   await run(process.execPath,[path.join(root,'mine/core.test.cjs')]);
   await run(process.execPath,[path.join(root,'mine/check.cjs')]);
-  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs'),path.join(root,'english/tests/phonics.test.mjs')]);
+  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs'),path.join(root,'english/tests/phonics.test.mjs'),path.join(root,'english/tests/memory.test.mjs')]);
  }
  await checkDeployment();
 })().catch(error=>{console.error(error);process.exitCode=1;});

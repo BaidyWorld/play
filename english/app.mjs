@@ -232,12 +232,13 @@ const notebookArt = `<svg class="hero-art" viewBox="0 0 250 185" fill="none" ari
 </svg>`;
 
 function renderNav() {
-  document.querySelector('#units').innerHTML = units.map(unit=>`<button class="unit-button" data-unit="${unit.id}" aria-current="${unit.id===unitId}" aria-label="${unit.id?`Unit ${unit.id}，`:''}${unit.title}"><span class="unit-number">${unit.id || '词'}</span><span class="unit-name">${unit.title}<small>${unit.id?`Unit ${unit.id} · `:''}${unit.subtitle}</small></span><span class="unit-arrow">${icon('chevron',13)}</span></button>`).join('');
-  document.querySelector('#breadcrumb').textContent = `我的课本 / ${unitId?`Unit ${unitId}`:'专有名词'}`;
+  const memorySelected=mode==='memory'||(mode==='practice'&&practiceReturnMode==='memory');
+  document.querySelector('#units').innerHTML = units.map(unit=>`<button class="unit-button" data-unit="${unit.id}" aria-current="${!memorySelected&&unit.id===unitId}" aria-label="${unit.id?`Unit ${unit.id}，`:''}${unit.title}"><span class="unit-number">${unit.id || '词'}</span><span class="unit-name">${unit.title}<small>${unit.id?`Unit ${unit.id} · `:''}${unit.subtitle}</small></span><span class="unit-arrow">${icon('chevron',13)}</span></button>`).join('')+`<button class="unit-button memory-nav" data-action="memory" aria-current="${memorySelected}"><span class="unit-number">${icon('repeat',18)}</span><span class="unit-name">串词速记<small>全册词汇 · 联想记忆</small></span><span class="unit-arrow">${icon('chevron',13)}</span></button>`;
+  document.querySelector('#breadcrumb').textContent = `我的课本 / ${memorySelected?'串词速记':unitId?`Unit ${unitId}`:'专有名词'}`;
 }
 function currentEntries() { return entries.filter(e=>e.unit===unitId && (filter!=='again'||progress.again.includes(e.id))); }
 function modeSwitch() {
-  return `<div class="mode-switch" aria-label="练习方式"><button data-action="study" aria-pressed="${mode==='study'}">${icon('book',15)}词表对照</button><button data-action="practice" aria-pressed="${mode==='practice'}">${icon('pencil',15)}纸笔听写</button><button data-action="memory" aria-pressed="${mode==='memory'}">${icon('repeat',15)}串词速记</button></div>`;
+  return `<div class="mode-switch" aria-label="练习方式"><button data-action="study" aria-pressed="${mode==='study'}">${icon('book',15)}词表对照</button><button data-action="practice" aria-pressed="${mode==='practice'}">${icon('pencil',15)}纸笔听写</button></div>`;
 }
 function studyView() {
   const unit = units.find(u=>u.id===unitId);
@@ -259,7 +260,7 @@ function wordCard(entry, number) {
 const memoryKinds = {sound:'相似拼写与读音',relation:'对照与词形变化',scene:'场景联想'};
 function memoryView() {
   return `<section class="memory-hero"><div><div class="hero-kicker">全册词汇 · 串起来记</div><h1 id="memory-title" tabindex="-1">一串词，一起记。</h1><p>读一串，在纸上写一串，再遮住英文试着回忆。<br>记不住的点星星，稍后再练。</p></div><span class="memory-total">${entries.length}<small>条课本词汇</small></span></section>
-    <div class="section-top memory-toolbar">${modeSwitch()}<button class="hide-button" data-action="conceal" aria-pressed="${concealed}">${icon(concealed?'eye':'hide',15)}${concealed?'显示英文':'遮住英文'}</button></div>
+    <div class="section-top memory-toolbar"><div class="section-heading"><h2>串词速记</h2></div><button class="hide-button" data-action="conceal" aria-pressed="${concealed}">${icon(concealed?'eye':'hide',15)}${concealed?'显示英文':'遮住英文'}</button></div>
     <div class="memory-tools"><label for="memory-search">找一个词<input id="memory-search" type="search" placeholder="输入英文或中文" value="${esc(memoryQuery)}" autocomplete="off"></label><nav class="memory-jumps" aria-label="速记分组">${Object.entries(memoryKinds).map(([kind,label])=>`<a href="#memory-${kind}">${label}</a>`).join('')}</nav></div>
     <p class="memory-guide">每次先选一小组：点读 → 看提示串起来 → 遮词回忆 → 纸笔听写。同一个词也会出现在不同的联想中。</p>
     ${Object.entries(memoryKinds).map(([kind,label])=>`<section class="memory-section" id="memory-${kind}" aria-labelledby="memory-heading-${kind}"><div class="memory-section-heading"><h2 id="memory-heading-${kind}">${label}</h2><span>${memoryGroups.filter(group=>group.kind===kind).length} 组</span></div><div class="memory-grid">${memoryGroups.filter(group=>group.kind===kind).map(group=>`<article class="memory-group" data-group="${group.id}"><div class="memory-group-header"><h3>${esc(group.title)}</h3><span>${group.words.length} 条</span></div>${concealed?'':`<p class="memory-tip">${esc(group.tip)}</p>`}<div class="memory-entries">${group.words.map(word=>memoryEntry(entryByWord.get(word))).join('')}</div><p class="memory-recall">${esc(group.recall)}</p><button class="secondary-button" data-action="practice-group" data-group="${group.id}">${icon('pencil',15)}练这一组</button></article>`).join('')}</div></section>`).join('')}
@@ -311,7 +312,7 @@ function practiceView() {
       <div class="practice-listening"><p class="prompt-label">听一听，把记住的写在纸上</p><h2 class="practice-meaning" id="practice-prompt">${esc(entry.meaning)}</h2><button id="listen" class="listen-button" data-action="speak" data-id="${entry.id}" aria-label="重听当前题目" aria-keyshortcuts="Space">${icon('sound',20)}重听一遍</button><p class="practice-hint">先跟读，再动笔。<br>空格可以重听，左右键切换题目。</p></div>
       <div class="practice-checking" aria-label="答案与核对">
         <div class="practice-answer-content">${round.revealed?`<div class="answer-panel"><p class="prompt-label">${result?`本题已记为：${result.correct?'写对了':'再练练'}，可以重新核对`:'对照纸上的拼写，认真核对'}</p><div class="answer-word ${entry.word.length>15?'long':''}" lang="en">${coloredWord(entry.word)}</div><p class="ipa" lang="en">/${esc(entry.ipa)}/</p>${entry.note?`<p class="entry-note">${esc(entry.note)}</p>`:''}${phonicsLegend()}</div>`:`<div class="answer-placeholder">${icon('pencil',30)}<h3>先写，再核对</h3><p>在纸上写好后，<br>按回车或点击下方展开答案。</p></div>`}</div>
-        <div class="practice-actions">${round.revealed?`<button id="grade-wrong" class="secondary-button" data-action="grade-wrong">${icon('repeat',17)}再练练</button><button id="grade-right" class="primary-button" data-action="grade-right" aria-keyshortcuts="Enter">${icon('check',17)}写对了</button>`:`<button class="primary-button" data-action="reveal" aria-keyshortcuts="Enter">${icon('eye',17)}展开答案</button>`}</div>
+        <div class="practice-actions"><button id="play-recording" class="secondary-button" data-action="speak" data-id="${entry.id}" aria-keyshortcuts="Space">播放录音</button>${round.revealed?`<button id="grade-wrong" class="secondary-button" data-action="grade-wrong">${icon('repeat',17)}再练练</button><button id="grade-right" class="primary-button" data-action="grade-right" aria-keyshortcuts="Enter">${icon('check',17)}写对了</button>`:`<button class="primary-button" data-action="reveal" aria-keyshortcuts="Enter">${icon('eye',17)}展开答案</button>`}</div>
       </div>
     </div>
     <nav class="question-navigation" aria-label="切换听写题目"><button class="secondary-button" data-action="previous-question" aria-keyshortcuts="ArrowLeft" ${round.index===0?'disabled':''}>${icon('back',15)}上一题</button><span>已核对 ${done} / ${total}</span><button class="secondary-button" data-action="next-question" aria-keyshortcuts="ArrowRight" ${round.index===total-1&&done<total?'disabled':''}>${done===total&&round.index===total-1?'本组结果':'下一题'}${icon('arrow',15)}</button></nav>
@@ -353,6 +354,14 @@ function beginPractice(ids = currentEntries().map(e=>e.id), context = '') {
   document.querySelector('#main').scrollIntoView({block:'start'});
 }
 document.querySelector('#units').addEventListener('click',event=>{
+  if (event.target.closest('[data-action="memory"]')) {
+    stopSpeech(); speechNotice('');
+    mode='memory'; round=null;
+    render('#memory-title');
+    document.querySelector('#main').scrollIntoView({block:'start'});
+    announce('已进入全册串词速记。');
+    return;
+  }
   const button = event.target.closest('[data-unit]');
   if (!button) return;
   stopSpeech();

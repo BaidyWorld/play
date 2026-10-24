@@ -26,7 +26,15 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   await load(()=>doc().querySelector('a[href="english/index.html"]').click());
   assert(frame.contentWindow.location.pathname==='/repo-name/english/index.html','English navigation keeps repository prefix');
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
-  assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  assert([...doc().styleSheets].some(sheet=>sheet.href&&new URL(sheet.href).pathname.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
+  const stylesheetVersion=new URL(doc().querySelector('link[rel="stylesheet"]').href).searchParams.get('v');
+  const scriptVersion=new URL(doc().querySelector('script[type="module"]').src).searchParams.get('v');
+  assert(stylesheetVersion&&stylesheetVersion===scriptVersion,'entry stylesheet and script share a cache-busting version');
+  const layoutObserver=new frame.contentWindow.MutationObserver(()=>{});
+  layoutObserver.observe(doc().querySelector('.word-grid'),{subtree:true,attributes:true,attributeFilter:['class','style']});
+  for(let i=0;i<20;i++)frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+  const unchangedWidthMutations=layoutObserver.takeRecords().length;layoutObserver.disconnect();
+  assert(unchangedWidthMutations===0,'height-only resize must not rebuild word-card layout; mutations='+unchangedWidthMutations);
   const normalWordSize=frame.contentWindow.getComputedStyle(doc().querySelector('.word-text')).fontSize;
   const checkWordLabels=expectedSize=>{
    checkLayout();

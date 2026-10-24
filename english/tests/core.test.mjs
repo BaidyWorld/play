@@ -50,3 +50,29 @@ test('voice selection prefers British English, then other English, never Chinese
   assert.equal(core.chooseVoice([]),null);
   assert.equal(core.chooseVoice([{name:'British',lang:'en_GB'}]).name,'British');
 });
+
+test('an explicitly chosen accent never silently uses the other accent', () => {
+  const us={name:'Samantha',lang:'en-US',voiceURI:'us-1'};
+  const gb={name:'Daniel',lang:'en-GB',voiceURI:'gb-1'};
+  assert.equal(core.chooseVoice([gb,us],'en-US'),us);
+  assert.equal(core.chooseVoice([gb],'en-US'),null);
+  assert.equal(core.chooseVoice([us],'en-GB'),null);
+  assert.deepEqual(core.voicesForAccent([gb,us,{name:'中文',lang:'zh-CN'}],'en-US'),[us]);
+});
+
+test('voice roles are selected by their stable ID within the requested accent', () => {
+  const samantha={name:'Samantha',lang:'en-US',voiceURI:'us-1'};
+  const alex={name:'Alex',lang:'en_US',voiceURI:'us-2'};
+  const daniel={name:'Daniel',lang:'en-GB',voiceURI:'gb-1'};
+  assert.equal(core.chooseVoice([samantha,alex,daniel],'en-US','us-2'),alex);
+  assert.equal(core.chooseVoice([samantha,alex,daniel],'en-US','gb-1'),samantha);
+  assert.equal(core.chooseVoice([samantha,alex],'en-US','removed-voice'),samantha);
+});
+
+test('saved voice preferences reject malformed data and unsupported accents', () => {
+  assert.deepEqual(core.parseVoiceSettings('{bad'),{accent:'en-GB',voiceId:''});
+  assert.deepEqual(core.parseVoiceSettings('null'),{accent:'en-GB',voiceId:''});
+  assert.deepEqual(core.parseVoiceSettings('{"accent":"zh-CN","voiceId":"wrong"}'),{accent:'en-GB',voiceId:''});
+  assert.deepEqual(core.parseVoiceSettings('{"accent":"en-US","voiceId":"us-2"}'),{accent:'en-US',voiceId:'us-2'});
+  assert.deepEqual(core.parseVoiceSettings('{"accent":"en-US","voiceId":2}'),{accent:'en-US',voiceId:''});
+});

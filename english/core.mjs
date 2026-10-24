@@ -40,7 +40,27 @@ export function applyResults(progress, results) {
   return {again: [...again], counts, last: results.slice(-5)};
 }
 
-export function chooseVoice(voices) {
-  const english = voices.filter(v => /^en(?:[-_]|$)/i.test(v.lang));
-  return english.find(v => /^en[-_]GB$/i.test(v.lang)) || english[0] || null;
+export function voicesForAccent(voices, accent) {
+  const language = accent.toLowerCase().replaceAll('_', '-');
+  return voices.filter(voice => {
+    const candidate = voice.lang.toLowerCase().replaceAll('_', '-');
+    return candidate === language || candidate.startsWith(language + '-');
+  });
+}
+
+export function chooseVoice(voices, accent, voiceId = '') {
+  const candidates = accent ? voicesForAccent(voices, accent) : voices.filter(v => /^en(?:[-_]|$)/i.test(v.lang));
+  if (voiceId) {
+    const selected = candidates.find(v => (v.voiceURI || v.name) === voiceId);
+    if (selected) return selected;
+  }
+  return (!accent && candidates.find(v => /^en[-_]GB$/i.test(v.lang))) || candidates[0] || null;
+}
+
+export function parseVoiceSettings(raw) {
+  const fallback = {accent:'en-GB', voiceId:''};
+  let data;
+  try { data = JSON.parse(raw); } catch { return fallback; }
+  if (!data || !['en-GB','en-US'].includes(data.accent)) return fallback;
+  return {accent:data.accent, voiceId:typeof data.voiceId === 'string' && data.voiceId.length <= 512 ? data.voiceId : ''};
 }

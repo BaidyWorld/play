@@ -17,8 +17,42 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(doc().querySelectorAll('.word-card').length===21,'English modules load and Unit 1 has 21 entries');
   assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/english/styles.css')&&sheet.cssRules.length>0),'English stylesheet loads');checkLayout();
   assert(doc().querySelector('.ipa').textContent.includes('hæpi'),'English phonetics visible');
+  assert(doc().querySelector('.word-card .ph-vowel')?.textContent==='a','phonics colors the vowel in happy');
+  const vowelColor=frame.contentWindow.getComputedStyle(doc().querySelector('.word-card .ph-vowel')).color;
+  const accent=()=>doc().getElementById('accent-select'),roles=()=>doc().getElementById('voice-select');
+  const gbVoice={voiceURI:'test-gb-daniel',name:'Daniel',lang:'en-GB',localService:true,default:true};
+  const usVoice={voiceURI:'test-us-samantha',name:'Samantha',lang:'en-US',localService:true,default:false};
+  const usRole={voiceURI:'test-us-alex',name:'Alex',lang:'en-US',localService:true,default:false};
+  let testVoices=[gbVoice,usVoice,usRole],spoken=[],cancellations=0;
+  const installSpeech=()=>{
+   const win=frame.contentWindow,speech=win.speechSynthesis;
+   Object.defineProperty(speech,'getVoices',{configurable:true,value:()=>testVoices});
+   Object.defineProperty(speech,'cancel',{configurable:true,value:()=>{cancellations++}});
+   Object.defineProperty(speech,'speak',{configurable:true,value:utterance=>{spoken.push(utterance);utterance.onend?.()}});
+   win.SpeechSynthesisUtterance=class {constructor(text){this.text=text}};
+   speech.dispatchEvent(new win.Event('voiceschanged'));
+  };
+  const change=(element,value)=>{element.value=value;element.dispatchEvent(new frame.contentWindow.Event('change',{bubbles:true}))};
+  testVoices=[usVoice];installSpeech();assert(accent().value==='en-US','automatic default uses available American voice');
+  testVoices=[gbVoice,usVoice,usRole];installSpeech();assert(accent().value==='en-GB','late British voices regain automatic default');
+  change(accent(),'en-US');
+  assert(roles().options.length===3,'American role list excludes British voices');
+  change(roles(),'test-us-alex');doc().getElementById('voice-preview').click();
+  assert(spoken.at(-1).voice===usRole&&spoken.at(-1).lang==='en-US','preview uses selected American role');
+  doc().querySelector('[data-action="speak"]').click();
+  assert(spoken.at(-1).text==='happy'&&spoken.at(-1).voice===usRole,'word audio uses selected role');
+  assert(cancellations>=2,'new speech cancels previous playback');
+  change(accent(),'en-GB');doc().getElementById('voice-preview').click();
+  assert(spoken.at(-1).voice===gbVoice,'British selection uses British voice');
+  testVoices=[gbVoice];installSpeech();change(accent(),'en-US');
+  const countBeforeMissing=spoken.length;doc().querySelector('[data-action="speak"]').click();
+  assert(roles().disabled&&spoken.length===countBeforeMissing,'missing American voice does not play British audio');
+  assert(doc().getElementById('speech-note').textContent.includes('美式'),'missing accent has an explicit message');
+  testVoices=[gbVoice,usVoice,usRole];installSpeech();change(roles(),'test-us-alex');
+
   doc().querySelector('[data-action="conceal"]').click();
   assert([...doc().querySelectorAll('.word-text')].every(e=>!e.textContent.trim()),'concealed list removes spelling');
+  assert(!doc().querySelector('.word-card .ph-vowel,.word-card .ph-group'),'concealed list removes colored answer hints');
   doc().querySelector('[data-action="practice"]').click();
   assert(!doc().querySelector('.answer-word')&&!doc().querySelector('[data-action="grade-right"]'),'paper practice hides answers and grading');checkLayout();
   for(let i=0;i<5;i++){
@@ -27,12 +61,15 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
    doc().querySelector(i===0?'[data-action="grade-wrong"]':'[data-action="grade-right"]').click();
   }
   assert(doc().querySelector('.summary-stats').textContent.includes('4'),'manual results summarized');
+  const summaryVowel=doc().querySelector('.result-row strong .ph-vowel');
+  assert(frame.contentWindow.getComputedStyle(summaryVowel).color===vowelColor,'summary retains phonics coloring');
   doc().querySelector('[data-action="retry"]').click();doc().querySelector('[data-action="reveal"]').click();doc().querySelector('[data-action="grade-right"]').click();
   assert(doc().querySelector('[data-action="next"]'),'retry preserves next group');
   doc().querySelector('[data-action="next"]').click();doc().querySelector('[data-action="reveal"]').click();
   assert(doc().querySelector('.answer-word').textContent==='girl','retry continues original unit at sixth entry');
   await load(()=>frame.contentWindow.location.reload());
   assert(doc().querySelector('[data-action="flag"]').getAttribute('aria-pressed')==='true','English review flags persist on refresh');
+  installSpeech();assert(accent().value==='en-US'&&roles().value==='test-us-alex','accent and voice role survive refresh');
   await load(()=>doc().querySelector('a[href="../index.html"]').click());assert(doc().querySelectorAll('.card').length===4,'English returns to homepage');
   await load(()=>doc().querySelector('a[href="lab/index.html"]').click());
   assert(frame.contentWindow.location.pathname==='/repo-name/lab/index.html','lab navigation');assert(doc().querySelector('.next-target')?.dataset.place==='bench','lab JavaScript started');assert([...doc().styleSheets].some(sheet=>sheet.href?.endsWith('/lab/visual.css')&&sheet.cssRules.length>0),'lab stylesheet loaded');checkLayout();
@@ -88,7 +125,7 @@ async function checkDeployment(){
   await run(process.execPath,[path.join(root,'tank/check.cjs')]);
   await run(process.execPath,[path.join(root,'mine/core.test.cjs')]);
   await run(process.execPath,[path.join(root,'mine/check.cjs')]);
-  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs')]);
+  await run(process.execPath,['--test',path.join(root,'english/tests/core.test.mjs'),path.join(root,'english/tests/vocabulary.test.mjs'),path.join(root,'english/tests/phonics.test.mjs')]);
  }
  await checkDeployment();
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -95,3 +95,10 @@
   .practice-mode .practice-card>.practice-actions{flex-shrink:0;padding:10px 12px}
   .practice-mode .practice-card>.practice-actions button{flex:1;min-width:0;font-size:12px;padding:9px}
 }
+
+.auto-reading-controls{position:sticky;top:8px;z-index:2;background:var(--paper);padding:9px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.auto-reading-controls button{font-size:12px;min-width:104px;padding:9px 14px}
+.auto-reading-controls [aria-pressed=true]{background:var(--green);color:white;border-color:var(--green)}
+#auto-reading-status{font-size:12px;line-height:1.6;color:var(--muted)}
+.word-card.reading-current{border-color:var(--green);box-shadow:0 0 0 2px #214f4220}
+@media(max-width:760px){.auto-reading-controls{gap:8px;margin-bottom:14px}#auto-reading-status{flex-basis:100%;font-size:11px}}

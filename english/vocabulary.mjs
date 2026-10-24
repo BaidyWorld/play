@@ -81,7 +81,7 @@ You look great!|juː lʊk ɡreɪt|你看起来很棒！|sentence`],
 fly a kite|flaɪ ə kaɪt|放风筝|phrase
 skateboard|ˈskeɪtbɔːd|滑滑板
 ride a bike|raɪd ə baɪk|骑自行车|phrase
-*child|tʃaɪld|孩子|word|复数 children /ˈtʃɪldrən/
+*child / Children|tʃaɪld; ˈtʃɪldrən|孩子；孩子们|word|child 是单数，children 是复数。|child, children
 *in|ɪn|在……里面
 *the|ðə; ðiː|（表示特指）
 *park|pɑːk|公园

@@ -57,7 +57,33 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   firstRecording.onended?.();assert(wordButtons()[1].classList.contains('is-speaking'),'old audio callbacks cannot reset a newer recording');
   failRecording=true;wordButtons()[0].click();await Promise.resolve();
   assert(!doc().getElementById('speech-note').hidden&&audioSource().value==='textbook','failed original playback reports an error and keeps the chosen source');
-  failRecording=false;frame.contentWindow.Audio=NativeAudio;
+  failRecording=false;
+  const autoRead=()=>doc().querySelector('[data-action="auto-read"]');
+  assert(autoRead(),'word list offers sequential automatic reading');
+  autoRead().click();const queueAudio=recordings.at(-1),firstQueueEnded=queueAudio.onended;
+  assert(queueAudio.src.endsWith('/words/u1-1.mp3')&&autoRead().textContent==='暂停朗读','auto reading begins with the first current entry');
+  firstQueueEnded();assert(queueAudio.src.endsWith('/words/u1-2.mp3'),'original playback advances in order using the same media element');
+  assert(doc().querySelector('.reading-current .word-button')?.dataset.id==='u1-2','automatic reading highlights the current word');
+  autoRead().click();const pausedSource=queueAudio.src;queueAudio.onended?.();
+  assert(queueAudio.paused&&queueAudio.src===pausedSource&&autoRead().textContent==='继续朗读','pause stops playback and ignores stale completion');
+  autoRead().click();assert(recordings.at(-1)===queueAudio&&queueAudio.src===pausedSource,'resume restarts the current word on the unlocked media element');
+  for(let i=1;i<21;i++)queueAudio.onended();
+  assert(autoRead().textContent==='自动朗读'&&doc().querySelector('[data-action="stop-reading"]').hidden,'automatic reading stops after the last entry');
+  autoRead().click();const manualCancel=recordings.at(-1).onended;wordButtons()[2].click();const manualAudio=recordings.at(-1);manualCancel();
+  assert(autoRead().textContent==='自动朗读'&&recordings.at(-1)===manualAudio&&manualAudio.src.endsWith('/words/u1-3.mp3'),'manual word playback cancels the queue without late advancement');
+  failRecording=true;autoRead().click();await Promise.resolve();
+  assert(autoRead().textContent==='自动朗读'&&!doc().getElementById('speech-note').hidden,'recording failure ends the queue with an explanation');
+  failRecording=false;autoRead().click();frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('pagehide'));
+  assert(autoRead().textContent==='自动朗读'&&doc().querySelector('[data-action="stop-reading"]').hidden,'leaving the page cancels the queue instead of preserving a stopped active state');
+  autoRead().click();doc().querySelector('[data-unit="4"]').click();
+  assert(autoRead().textContent==='自动朗读'&&doc().querySelector('[data-id="u4-6"] .word-text')?.textContent==='child / Children','unit switch cancels reading and child displays both forms');
+  checkLayout();doc().querySelector('[data-action="flag"][data-id="u4-6"]').click();doc().querySelector('[data-action="again"]').click();
+  autoRead().click();const childAudio=recordings.at(-1);childAudio.onended();
+  assert(childAudio.src.endsWith('/words/u4-6.mp3')&&doc().getElementById('auto-reading-status').textContent.includes('1 条'),'filtered automatic reading plays only the visible review entries');
+  doc().querySelector('[data-action="practice"]').click();doc().getElementById('play-recording').click();doc().querySelector('[data-action="reveal"]').click();
+  assert(doc().querySelector('.answer-word').textContent==='child / Children','dictation answer includes the singular and plural matching its original recording');checkPracticeViewport();
+  doc().querySelector('[data-unit="1"]').click();
+  frame.contentWindow.Audio=NativeAudio;
   const nativeClip=new Audio(prefix+'english/audio/textbook/words/u1-1.mp3');nativeClip.preload='metadata';nativeClip.muted=true;
   await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('textbook MP3 metadata timeout: state '+nativeClip.networkState+'/'+nativeClip.readyState+' '+nativeClip.currentSrc)),5000);nativeClip.onloadedmetadata=()=>{clearTimeout(timeout);resolve()};nativeClip.onerror=()=>{clearTimeout(timeout);reject(Error('textbook MP3 cannot decode'))};nativeClip.load()});
   assert(nativeClip.duration>1&&nativeClip.duration<5,'published MP3 is a decodable short word clip');nativeClip.pause();nativeClip.removeAttribute('src');nativeClip.load();
@@ -69,6 +95,7 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   assert(doc().querySelector('#units [data-action="memory"]').getAttribute('aria-current')==='true'&&!doc().querySelector('[data-unit][aria-current="true"]'),'memory navigation shows the active section');
   assert(doc().getElementById('breadcrumb').textContent.includes('串词速记'),'memory breadcrumb matches the selected menu');
   assert(new Set([...doc().querySelectorAll('.memory-entry')].map(row=>row.dataset.id)).size===165,'memory map covers every photographed vocabulary entry');checkLayout();
+  assert(doc().querySelector('.memory-entry[data-id="u4-6"] .memory-word-text').textContent==='child / Children','memory map displays both forms too');
   const laterStar=doc().querySelector('[data-group="animal-friends"] [data-action="flag"][data-id="u6-3"]');laterStar.focus({preventScroll:true});laterStar.click();
   assert(doc().activeElement.closest('.memory-group')?.dataset.group==='animal-friends','repeated vocabulary keeps focus in the same memory group');
   doc().querySelector('[data-action="conceal"]').click();
@@ -132,6 +159,14 @@ const browserCheck=`<!doctype html><meta charset="utf-8"><body style="margin:0">
   doc().querySelector('[data-action="speak"]').click();
   assert(spoken.at(-1).text==='happy'&&spoken.at(-1).voice===usRole,'word audio uses selected role');
   assert(cancellations>=2,'new speech cancels previous playback');
+  const beforeDeviceQueue=spoken.length;autoRead().click();
+  assert(spoken.length===beforeDeviceQueue+21&&spoken.slice(beforeDeviceQueue,beforeDeviceQueue+3).map(item=>item.text).join(',')==='happy,sad,angry','automatic device speech waits for each word and keeps textbook order');
+  assert(spoken.slice(beforeDeviceQueue).every(item=>item.voice===usRole)&&autoRead().textContent==='自动朗读','automatic device speech retains the selected role and finishes');
+  Object.defineProperty(frame.contentWindow.speechSynthesis,'speak',{configurable:true,value:utterance=>spoken.push(utterance)});
+  autoRead().click();spoken.at(-1).onerror({error:'interrupted'});
+  assert(autoRead().textContent==='自动朗读','an interrupted device voice does not leave automatic reading stuck');installSpeech();
+
+
   change(accent(),'en-GB');doc().getElementById('voice-preview').click();
   assert(spoken.at(-1).voice===gbVoice,'British selection uses British voice');
   testVoices=[gbVoice];installSpeech();change(accent(),'en-US');

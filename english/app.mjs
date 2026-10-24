@@ -37,6 +37,7 @@ let progress = {again:[],counts:{},last:[]};
 let unitId = 1, filter = 'all', concealed = false, mode = 'study';
 let round = null, sourceIds = [], groupOffset = 0;
 const heardIds = new Set();
+let readingQueue = null;
 let memoryQuery = '', practiceContext = '', practiceReturnMode = 'study';
 const entryByWord = new Map(entries.map(entry=>[entry.word,entry]));
 let synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
@@ -111,51 +112,58 @@ function saveVoiceSettings() {
   try { localStorage.setItem(voiceStorageKey,JSON.stringify(voiceSettings)); }
   catch { storageWarning(); }
 }
-function stopSpeech() {
+function stopSpeech(keepReading=false) {
   speechSerial += 1;
   if (synth) { try { synth.cancel(); } catch { /* Some embedded browsers expose an inactive speech service. */ } }
   currentSpeech = null;
   if (currentAudio) { currentAudio.pause(); currentAudio=null; }
   document.querySelectorAll('.is-speaking').forEach(e=>e.classList.remove('is-speaking'));
+  document.querySelectorAll('.reading-current').forEach(e=>e.classList.remove('reading-current'));
+  if (!keepReading) readingQueue=null;
+  updateAutoReading();
 }
-function playRecording(clip, button) {
+function playbackError(text) {
+  stopSpeech();
+  speechNotice(text);
+}
+function playRecording(clip, button, onEnd) {
   const token=speechSerial;
-  const audio=new Audio(clip.src);
+  const audio=readingQueue?(readingQueue.audio ||= new Audio()):new Audio(clip.src);
+  if (readingQueue) audio.src=clip.src;
   currentAudio=audio;
   button.classList.add('is-speaking');
   audio.onended=()=>{
     if (token!==speechSerial) return;
     button.classList.remove('is-speaking');
     currentAudio=null;
+    onEnd?.();
   };
   const fail=()=>{
     if (token!==speechSerial) return;
-    audio.pause();
-    button.classList.remove('is-speaking');
-    currentAudio=null;
-    speechNotice('教材原声暂时无法播放，请检查网络后重试，或切换为设备朗读。');
+    playbackError('教材原声暂时无法播放，请检查网络后重试，或切换为设备朗读。');
   };
   audio.onerror=fail;
   try { const playing=audio.play(); if (playing?.catch) playing.catch(fail); }
   catch { fail(); }
 }
-function speak(text, button, entryId) {
-  stopSpeech();
+function speak(text, button, entryId, onEnd) {
+  stopSpeech(Boolean(onEnd));
+  if (readingQueue) button.closest('.word-card')?.classList.add('reading-current');
   speechNotice('');
   if (audioSource==='textbook' && textbookClips[entryId]) {
-    if ('Audio' in window) playRecording(textbookClips[entryId],button);
-    else speechNotice('当前浏览器无法播放教材原声，请换用浏览器或设备朗读。');
+    if ('Audio' in window) playRecording(textbookClips[entryId],button,onEnd);
+    else playbackError('当前浏览器无法播放教材原声，请换用浏览器或设备朗读。');
     return;
   }
   if (audioSource==='textbook') speechNotice('这条词汇暂未提供教材原声，本次使用设备朗读。');
   if (!synth || !('SpeechSynthesisUtterance' in window)) {
-    speechNotice('当前浏览器不支持朗读。请用 Safari、Chrome 或 Edge 打开；仍可展开答案进行读写练习。');
+    playbackError('当前浏览器不支持朗读。请用 Safari、Chrome 或 Edge 打开；仍可展开答案进行读写练习。');
     return;
   }
   updateVoiceStatus();
   const voice = chooseVoice(voices,voiceSettings.accent,voiceSettings.voiceId);
   if (!voice) {
-    speechNotice(`尚未找到${voiceSettings.accent==='en-US'?'美式':'英式'}英语角色。请换一种口音，或在设备语音设置中添加对应英语语音后重试。`);
+    playbackError(`尚未找到${voiceSettings.accent==='en-US'?'美式':'英式'}英语角色。请换一种口音，或在设备语音设置中添加对应英语语音后重试。`);
     return;
   }
   const token = speechSerial;
@@ -169,19 +177,55 @@ function speak(text, button, entryId) {
     if (token !== speechSerial) return;
     button.classList.remove('is-speaking');
     currentSpeech = null;
+    onEnd?.();
   };
   utterance.onerror = event => {
-    if (token !== speechSerial || ['canceled','interrupted'].includes(event.error)) return;
-    button.classList.remove('is-speaking');
-    currentSpeech = null;
-    speechNotice('这次没有播放成功。请检查设备音量后再点一次；也可以换用浏览器打开。');
+    if (token !== speechSerial) return;
+    if (['canceled','interrupted'].includes(event.error)) { if (readingQueue) stopSpeech(); return; }
+    playbackError('这次没有播放成功。请检查设备音量后再点一次；也可以换用浏览器打开。');
   };
   try { synth.speak(utterance); }
   catch {
-    button.classList.remove('is-speaking');
-    currentSpeech = null;
-    speechNotice('这次没有播放成功，请检查设备音量，或换用浏览器再试。');
+    playbackError('这次没有播放成功，请检查设备音量，或换用浏览器再试。');
   }
+}
+function updateAutoReading() {
+  const button=root.querySelector('[data-action="auto-read"]');
+  if (!button) return;
+  button.textContent=readingQueue?(readingQueue.paused?'继续朗读':'暂停朗读'):'自动朗读';
+  button.setAttribute('aria-pressed',String(Boolean(readingQueue&&!readingQueue.paused)));
+  root.querySelector('[data-action="stop-reading"]').hidden=!readingQueue;
+  root.querySelector('#auto-reading-status').textContent=readingQueue?`${readingQueue.paused?'已暂停':'正在朗读'} · 第 ${readingQueue.index+1} / ${readingQueue.ids.length} 条${readingQueue.paused?'，继续时从当前词开始':''}`:'按当前列表顺序逐条朗读，读完自动结束。';
+}
+function readQueuedEntry() {
+  const queue=readingQueue;
+  if (!queue||queue.paused) return;
+  if (queue.index>=queue.ids.length) {
+    const total=queue.ids.length;
+    stopSpeech();
+    root.querySelector('#auto-reading-status').textContent=`已读完 ${total} 条词汇。`;
+    announce('当前列表已全部朗读完成。');
+    return;
+  }
+  const entry=byId.get(queue.ids[queue.index]);
+  const button=root.querySelector(`.word-button[data-id="${entry.id}"]`);
+  button.closest('.word-card').scrollIntoView({block:'center'});
+  speak(entry.speak,button,entry.id,()=>{
+    if (readingQueue!==queue||queue.paused) return;
+    queue.index++;
+    readQueuedEntry();
+  });
+}
+function toggleAutoReading() {
+  if (readingQueue&&!readingQueue.paused) {
+    readingQueue.paused=true;
+    stopSpeech(true);
+    announce('自动朗读已暂停。');
+    return;
+  }
+  if (!readingQueue) readingQueue={ids:currentEntries().map(entry=>entry.id),index:0,paused:false};
+  readingQueue.paused=false;
+  readQueuedEntry();
 }
 function setReadingSettings(expanded) {
   const toggle=document.querySelector('#reading-settings-toggle');
@@ -220,7 +264,7 @@ document.querySelector('#voice-preview').addEventListener('click',event=>{
   } else speak("Hello! Let's learn English.",event.currentTarget);
 });
 if (synth) synth.addEventListener('voiceschanged',updateVoiceStatus);
-window.addEventListener('pagehide',stopSpeech);
+window.addEventListener('pagehide',()=>stopSpeech());
 
 const notebookArt = `<svg class="hero-art" viewBox="0 0 250 185" fill="none" aria-hidden="true">
   <ellipse cx="136" cy="164" rx="92" ry="10" fill="#ccd9bd" opacity=".55"/>
@@ -259,6 +303,7 @@ function studyView() {
   return `<section class="hero" aria-labelledby="welcome-title"><div class="hero-copy"><div class="hero-kicker">三年级上册 · 纸笔记忆小练习</div><h1 id="welcome-title">听一听，<br class="mobile-break">写一写。</h1><p>点击单词，跟着读一遍。<br>再拿起笔，把记住的写下来。</p></div>${notebookArt}</section>
   <section aria-labelledby="unit-title"><div class="section-top"><div class="section-heading"><h2 id="unit-title">${unit.id?`Unit ${unit.id}`:'专有名词'}</h2><span class="count-tag">${all.length} 条词汇</span></div>${modeSwitch()}</div>
   <div class="toolbar"><div class="filter-buttons"><button class="filter-button" data-action="all" aria-pressed="${filter==='all'}">全部词汇</button><button class="filter-button" data-action="again" aria-pressed="${filter==='again'}">${icon('star',14)}再练词<span class="filter-count">${reviewCount}</span></button></div><div class="toolbar-right"><button class="hide-button" data-action="conceal" aria-pressed="${concealed}">${icon(concealed?'eye':'hide',15)}${concealed?'显示英文':'遮住英文'}</button><span class="voice-status"><span class="voice-dot${audioSource==='system'&&!synth?' unavailable':''}"></span><span data-voice-status>${voiceLabel()}</span></span></div></div>
+  ${shown.length?`<div class="auto-reading-controls" aria-label="单词自动朗读"><button class="secondary-button" data-action="auto-read" aria-pressed="false">自动朗读</button><button class="secondary-button" data-action="stop-reading" hidden>结束朗读</button><span id="auto-reading-status" role="status">按当前列表顺序逐条朗读，读完自动结束。</span></div>`:''}
   ${phonicsLegend()}
   ${shown.length?`<div class="word-grid">${shown.map(entry=>wordCard(entry,all.indexOf(entry)+1)).join('')}</div>`:`<div class="empty-state">${icon('star',36)}<h3>这一单元还没有再练词</h3><p>遇到不熟的单词，点一下卡片右上角的星星，<br>下次就能在这里集中练习。</p><button class="secondary-button" data-action="all">回到全部词汇</button></div>`}
   <p class="study-tip">${icon('info',14)}<span>点击英文或小喇叭听发音；点星星收进再练词。短语、句子也可以跟读。</span></p>
@@ -393,6 +438,7 @@ root.addEventListener('click',event=>{
   const button = event.target.closest('button[data-action]');
   if (!button) return;
   const action = button.dataset.action;
+  if (action==='auto-read') { toggleAutoReading(); return; }
   if (action==='speak') {
     const entry=byId.get(button.dataset.id);
     if (entry) {
@@ -403,13 +449,15 @@ root.addEventListener('click',event=>{
     return;
   }
   if (action==='flag') {
+    if (readingQueue) stopSpeech();
     const id = button.dataset.id;
     const flagged = progress.again.includes(id);
     progress.again = flagged?progress.again.filter(i=>i!==id):[...progress.again,id];
     persist(); render(); announce(flagged?'已移出再练词。':'已加入再练词。'); return;
   }
   stopSpeech(); speechNotice('');
-  if (action==='study') { mode='study'; round=null; render('[data-action="practice"]'); }
+  if (action==='stop-reading') { root.querySelector('[data-action="auto-read"]')?.focus({preventScroll:true}); announce('自动朗读已结束。'); }
+  else if (action==='study') { mode='study'; round=null; render('[data-action="practice"]'); }
   else if (action==='memory') { mode='memory'; round=null; render('#memory-title'); }
   else if (action==='practice') beginPractice();
   else if (action==='practice-group') {

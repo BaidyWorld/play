@@ -19,6 +19,10 @@ test('every entry is usable for both on-screen phonetics and spoken paper practi
     assert.ok(['word','phrase','sentence'].includes(e.type),e.id);
     assert.ok(!/[（(]/.test(e.speak),`${e.word}: spoken text should omit textbook notes`);
   }
-  assert.equal(entries.find(e=>e.word==='child').speak,'child');
+  const child=entries.find(e=>e.id==='u4-6');
+  assert.equal(child.word,'child / Children');
+  assert.equal(child.speak,'child, children');
+  assert.ok(child.ipa.includes('tʃaɪld')&&child.ipa.includes('ˈtʃɪldrən'));
+  assert.ok(child.note.includes('复数'));
   assert.equal(entries.find(e=>e.word==='a / an').speak,'a, an');
 });

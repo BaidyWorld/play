@@ -19,7 +19,7 @@ export const memoryGroups = [
   {id:'sad-dad', kind:'sound', title:'爸爸来安慰', tip:'sad 伤心的、bad 坏的、dad 爸爸，只换第一个字母，后面都是 ad。', recall:'写出：伤心的、坏的、爸爸。', words:['sad','bad','dad']},
   {id:'short-u', kind:'sound', title:'同一个短音', tip:'jump、mum、cut、come、love、some、but 都有 /ʌ/ 音；come、love、some 的 o 在这里也读它。', recall:'写出：跳、妈妈、切、来、爱、一些、但是。', words:['jump','mum','cut','come','love','some','but']},
   {id:'feelings', kind:'scene', title:'今天心情怎样', tip:'问 How are you?，好时说 Fine, thank you.，不太好说 Not so good.；再用心情词说明。', recall:'写出四种心情、一个“好／行”，再写出问候和两种回答。', words:['happy','sad','angry','tired','OK','How are you?','Fine, thank you.','Not so good.']},
-  {id:'children', kind:'scene', title:'认识小伙伴', tip:'boy 男孩、girl 女孩，都是 child 孩子；twin 是双胞胎之一，双胞胎也有 different 不同之处。', recall:'写出：男孩、女孩、孩子、双胞胎之一、不同的。', words:['boy','girl','child','twin','different']},
+  {id:'children', kind:'scene', title:'认识小伙伴', tip:'boy 男孩、girl 女孩，都是 child 孩子；twin 是双胞胎之一，双胞胎也有 different 不同之处。', recall:'写出：男孩、女孩、孩子、双胞胎之一、不同的。', words:['boy','girl','child / Children','twin','different']},
   {id:'be-pairs', kind:'relation', title:'人称找搭档', tip:'I 配 am，you 配 are，it 配 is；把每一对连起来读。', recall:'写出：我、你、它，再在旁边配上“是”。', words:['I','am','you','are','it','is']},
   {id:'pointing', kind:'relation', title:'指一指说清楚', tip:'近处 this 这个，远处 that 那个；a／an 表示一个，the 帮我们指明是哪一个。', recall:'写出：这个、那个、一个（两种写法）、表示特指的词。', words:['this','that','a / an','the']},
   {id:'whose-name', kind:'scene', title:'名牌是谁的', tip:'who 问谁，name 是名字；my 我的、your 你的、his 他的，给名牌找主人。', recall:'写出：谁、名字、我的、你的、他的。', words:['who','name','my','your','his']},
